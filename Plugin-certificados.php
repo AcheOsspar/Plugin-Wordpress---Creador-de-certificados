@@ -30,12 +30,17 @@ function zc_final_mostrar_campos_html($post) {
     $participante = get_post_meta($post->ID, '_certificado_participante', true);
     $curso = get_post_meta($post->ID, '_certificado_curso', true);
     $fecha = get_post_meta($post->ID, '_certificado_fecha', true);
+    $director = get_post_meta($post->ID, '_certificado_director', true);
+    $instructor = get_post_meta($post->ID, '_certificado_instructor', true);
     $pdf_url = get_post_meta($post->ID, '_certificado_pdf_url', true);
     wp_nonce_field('zc_final_guardar_datos', 'zc_final_nonce');
     echo '<p><label><strong>Código de Verificación:</strong><br><input type="text" name="certificado_codigo" value="' . esc_attr($codigo) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Nombre del Participante:</strong><br><input type="text" name="certificado_participante" value="' . esc_attr($participante) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Curso:</strong><br><input type="text" name="certificado_curso" value="' . esc_attr($curso) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Fecha de Emisión:</strong><br><input type="date" name="certificado_fecha" value="' . esc_attr($fecha) . '"></label></p>';
+    echo '<h3>Firmas</h3>';
+    echo '<p><label><strong>Nombre del Director:</strong><br><input type="text" name="certificado_director" value="' . esc_attr($director) . '" style="width:100%;"></label></p>';
+    echo '<p><label><strong>Nombre del Instructor:</strong><br><input type="text" name="certificado_instructor" value="' . esc_attr($instructor) . '" style="width:100%;"></label></p>';
     echo '<hr>';
     echo '<p style="background-color: #f0f6fc; padding: 15px; border-radius: 4px;"><label><strong>URL del PDF (Automático):</strong><br><input type="url" value="' . esc_attr($pdf_url) . '" style="width:100%; background-color: #eee;" readonly></label></p>';
 }
@@ -48,6 +53,8 @@ function zc_final_guardar_datos($post_id, $post) {
     if (isset($_POST['certificado_participante'])) update_post_meta($post_id, '_certificado_participante', sanitize_text_field($_POST['certificado_participante']));
     if (isset($_POST['certificado_curso'])) update_post_meta($post_id, '_certificado_curso', sanitize_text_field($_POST['certificado_curso']));
     if (isset($_POST['certificado_fecha'])) update_post_meta($post_id, '_certificado_fecha', sanitize_text_field($_POST['certificado_fecha']));
+    if (isset($_POST['certificado_director'])) update_post_meta($post_id, '_certificado_director', sanitize_text_field($_POST['certificado_director']));
+    if (isset($_POST['certificado_instructor'])) update_post_meta($post_id, '_certificado_instructor', sanitize_text_field($_POST['certificado_instructor']));
 }
 
 // =============================================================================
@@ -95,6 +102,8 @@ function zc_final_generar_pdf($post_id, $post) {
     $participante = get_post_meta($post_id, '_certificado_participante', true);
     $curso = get_post_meta($post_id, '_certificado_curso', true);
     $fecha = get_post_meta($post_id, '_certificado_fecha', true);
+    $director = get_post_meta($post_id, '_certificado_director', true) ?: 'Nombre Director'; // Valor por defecto si está vacío
+    $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: 'Nombre Instructor'; // Valor por defecto
     $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
 
     // --- DISEÑO DEL CERTIFICADO ---
@@ -149,13 +158,28 @@ function zc_final_generar_pdf($post_id, $post) {
     $pdf->MultiCell(0, 5, "Este certificado se otorga al titular por haber completado con éxito el curso, alcanzando las competencias y habilidades impartidas.", 0, 'L'); // Tu texto
     $pdf->Ln(40); // Espacio generoso antes de las firmas
     
-    // --- SECCIÓN DE FIRMAS (POSICIÓN CORREGIDA) ---
+    // --- SECCIÓN DE FIRMAS (CON NOMBRES Y LÍNEAS) ---
+    $pdf->SetFont($font, 'B', 12);
+    $pdf->SetTextColor(50, 50, 50);
+
+    // Nombre del Director
+    $pdf->SetX(25);
+    $pdf->Cell(60, 10, $director, 0, 0, 'C');
+
+    // Nombre del Instructor
+    $pdf->SetX(125);
+    $pdf->Cell(60, 10, $instructor, 0, 1, 'C');
+
+    // Líneas de firma
     $yPositionFirmas = $pdf->GetY();
     $pdf->Line(25, $yPositionFirmas, 85, $yPositionFirmas);
     $pdf->Line(125, $yPositionFirmas, 185, $yPositionFirmas);
     $pdf->Ln(2);
+
+    // Títulos debajo de la línea
     $pdf->SetFont($font, 'B', 10);
     $pdf->SetTextColor(80, 80, 80);
+    $pdf->SetX(25);
     $pdf->Cell(60, 10, 'Firma Director', 0, 0, 'C');
     $pdf->SetX(125);
     $pdf->Cell(60, 10, 'Firma Instructor', 0, 1, 'C');
