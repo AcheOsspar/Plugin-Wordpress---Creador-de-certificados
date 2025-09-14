@@ -67,14 +67,76 @@ function zc_final_mostrar_columnas($column_name, $post_id) { switch ($column_nam
 add_filter('manage_edit-certificado_sortable_columns', 'zc_final_hacer_columnas_sortables' );
 function zc_final_hacer_columnas_sortables($columns) { $columns['codigo'] = '_certificado_codigo'; $columns['fecha'] = '_certificado_fecha'; $columns['participante'] = '_certificado_participante'; return $columns; }
 add_action('pre_get_posts', 'zc_final_ordenar_por_columnas_personalizadas');
-function zc_final_ordenar_por_columnas_personalizadas($query) { if (!is_admin() || !$query->is_main_query() || $query->get('post_type') !== 'certificado') return; $orderby = $query->get('orderby'); if ('_certificado_codigo' === $orderby || '_certificado_fecha' === $orderby || '_certificado_participante' === $orderby) { $query->set('meta_key', $orderby); $query->set('orderby', 'meta_value'); } }
+function zc_final_ordenar_por_columnas_personalizadas($query) { 
+    if (!is_admin() || !$query->is_main_query() || $query->get('post_type') !== 'certificado') return; 
+    $orderby = $query->get('orderby'); 
+    if ('_certificado_codigo' === $orderby || '_certificado_fecha' === $orderby || '_certificado_participante' === $orderby) { 
+        $query->set('meta_key', $orderby); $query->set('orderby', 'meta_value'); 
+    } 
+}
 
 // =============================================================================
 // PARTE 4: IMPORTADOR DE CSV
 // =============================================================================
 add_action('admin_menu', 'zc_final_agregar_pagina_importador');
 function zc_final_agregar_pagina_importador() { add_submenu_page('edit.php?post_type=certificado', 'Importar Certificados', 'Importar', 'manage_options', 'zc-importador-certificados', 'zc_final_mostrar_pagina_importador'); }
-function zc_final_mostrar_pagina_importador() { echo '<div class="wrap"><h1>Importar Certificados desde CSV</h1>'; if (isset($_POST['zc_import_nonce']) && wp_verify_nonce($_POST['zc_import_nonce'], 'zc_import_action')) { if (!empty($_FILES['csv_file']['tmp_name'])) { $csv_file = $_FILES['csv_file']['tmp_name']; $file_handle = fopen($csv_file, 'r'); $headers = fgetcsv($file_handle, 1024, ','); $header_map = array_flip($headers); $importados = 0; $errores = 0; while (($row = fgetcsv($file_handle, 1024, ',')) !== FALSE) { $data = array(); foreach($header_map as $key => $index) { if (isset($row[$index])) { $data[$key] = $row[$index]; } else { $data[$key] = ''; }} $post_data = array('post_title' => sanitize_text_field($data['titulo']), 'post_type' => 'certificado', 'post_status' => 'publish'); $post_id = wp_insert_post($post_data); if ($post_id > 0) { update_post_meta($post_id, '_certificado_codigo', sanitize_text_field($data['codigo'])); update_post_meta($post_id, '_certificado_participante', sanitize_text_field($data['participante'])); update_post_meta($post_id, '_certificado_curso', sanitize_text_field($data['curso'])); update_post_meta($post_id, '_certificado_fecha', sanitize_text_field($data['fecha'])); $importados++; } else { $errores++; } } fclose($file_handle); echo '<div class="notice notice-success is-dismissible"><p><strong>Proceso completado:</strong> ' . $importados . ' certificados importados. ' . $errores . ' errores.</p></div>'; } else { echo '<div class="notice notice-error is-dismissible"><p>Por favor, selecciona un archivo CSV.</p></div>';} } echo '<p>Sube un archivo CSV con las columnas: <strong>titulo, codigo, participante, curso, fecha</strong>.</p><form method="post" enctype="multipart/form-data">'; wp_nonce_field('zc_import_action', 'zc_import_nonce'); echo '<table class="form-table"><tr valign="top"><th scope="row"><label for="csv_file">Archivo CSV:</label></th><td><input type="file" id="csv_file" name="csv_file" accept=".csv" required></td></tr></table>'; submit_button('Subir e Importar Certificados'); echo '</form></div>'; }
+function zc_final_mostrar_pagina_importador() { 
+    echo '<div class="wrap"><h1>Importar Certificados desde CSV</h1>'; 
+    if (isset($_POST['zc_import_nonce']) && wp_verify_nonce($_POST['zc_import_nonce'], 'zc_import_action')) { 
+        if (!empty($_FILES['csv_file']['tmp_name'])) { 
+            $csv_file = $_FILES['csv_file']['tmp_name']; 
+            $file_handle = fopen($csv_file, 'r'); 
+            $headers = fgetcsv($file_handle, 1024, ','); 
+            $header_map = array_flip($headers); 
+            $importados = 0; 
+            $errores = 0; 
+            while (($row = fgetcsv($file_handle, 1024, ',')) !== FALSE) { 
+                $data = array(); 
+                foreach($header_map as $key => $index) { 
+                    if (isset($row[$index])) { 
+                        $data[$key] = $row[$index]; 
+                    } else { 
+                        $data[$key] = ''; 
+                    }
+                } 
+                $post_data = array(
+                    'post_title' => isset($data['titulo']) ? sanitize_text_field($data['titulo']) : 'Certificado sin título', 
+                    'post_type' => 'certificado', 
+                    'post_status' => 'publish'
+                ); 
+                $post_id = wp_insert_post($post_data); 
+                if ($post_id > 0) { 
+                    if (isset($data['codigo'])) update_post_meta($post_id, '_certificado_codigo', sanitize_text_field($data['codigo'])); 
+                    if (isset($data['participante'])) update_post_meta($post_id, '_certificado_participante', sanitize_text_field($data['participante'])); 
+                    if (isset($data['curso'])) update_post_meta($post_id, '_certificado_curso', sanitize_text_field($data['curso'])); 
+                    if (isset($data['fecha'])) update_post_meta($post_id, '_certificado_fecha', sanitize_text_field($data['fecha'])); 
+                    if (isset($data['director'])) update_post_meta($post_id, '_certificado_director', sanitize_text_field($data['director'])); 
+                    if (isset($data['instructor'])) update_post_meta($post_id, '_certificado_instructor', sanitize_text_field($data['instructor'])); 
+                    
+                    // Forzar la (re)generación del PDF con los datos completos
+                    $post_object = get_post($post_id);
+                    if ($post_object) {
+                        zc_final_generar_pdf($post_id, $post_object);
+                    }
+
+                    $importados++; 
+                } else { 
+                    $errores++; 
+                } 
+            } 
+            fclose($file_handle); 
+            echo '<div class="notice notice-success is-dismissible"><p><strong>Proceso completado:</strong> ' . $importados . ' certificados importados. ' . $errores . ' errores.</p></div>'; 
+        } else { 
+            echo '<div class="notice notice-error is-dismissible"><p>Por favor, selecciona un archivo CSV.</p></div>';
+        } 
+    } 
+    echo '<p>Sube un archivo CSV con las columnas: <strong>titulo, codigo, participante, curso, fecha, director, instructor</strong>.</p>'; 
+    echo '<form method="post" enctype="multipart/form-data">'; 
+    wp_nonce_field('zc_import_action', 'zc_import_nonce'); 
+    echo '<table class="form-table"><tr valign="top"><th scope="row"><label for="csv_file">Archivo CSV:</label></th><td><input type="file" id="csv_file" name="csv_file" accept=".csv" required></td></tr></table>'; 
+    submit_button('Subir e Importar Certificados'); 
+    echo '</form></div>'; 
+}
 
 // =============================================================================
 // PARTE 5: SHORTCODE DE VERIFICACIÓN
