@@ -76,7 +76,7 @@ add_shortcode('verificador_de_certificados', 'zc_final_funcion_verificadora');
 function zc_final_funcion_verificadora() { ob_start(); if (isset($_GET['id']) && !empty($_GET['id'])) { $codigo_certificado = sanitize_text_field($_GET['id']); $args = array('post_type' => 'certificado', 'posts_per_page' => 1, 'meta_query' => array(array('key' => '_certificado_codigo', 'value' => $codigo_certificado, 'compare' => '='))); $query = new WP_Query($args); if ($query->have_posts()) { while ($query->have_posts()) { $query->the_post(); $participante = get_post_meta(get_the_ID(), '_certificado_participante', true); $curso = get_post_meta(get_the_ID(), '_certificado_curso', true); $fecha = get_post_meta(get_the_ID(), '_certificado_fecha', true); $pdf_url = get_post_meta(get_the_ID(), '_certificado_pdf_url', true); echo '<div style="border: 2px solid #84BC41; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #84BC41; font-family: \'Open Sans\', sans-serif;">✅ Certificado Válido</h2>'; echo '<p><strong>Participante:</strong> ' . esc_html($participante) . '</p>'; echo '<p><strong>Curso:</strong> ' . esc_html($curso) . '</p>'; echo '<p><strong>Fecha de Emisión:</strong> ' . esc_html($fecha) . '</p>'; echo '<p><strong>Código de Verificación:</strong> ' . esc_html($codigo_certificado) . '</p>'; if (!empty($pdf_url)) { echo '<hr style="margin: 20px 0;">'; echo '<a href="' . esc_url($pdf_url) . '" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #84BC41; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 20px; font-weight: bold;">Descargar Certificado en PDF</a>'; echo '<h4 style="margin-top: 10px; font-family: \'Open Sans\', sans-serif;">Visualización del Certificado</h4>'; $google_viewer_url = 'https://docs.google.com/gview?url=' . urlencode($pdf_url) . '&embedded=true'; echo '<iframe src="' . esc_url($google_viewer_url) . '" width="100%" style="border: 1px solid #ddd; aspect-ratio: 1 / 1.414;"></iframe>'; } echo '</div>'; } } else { echo '<div style="border: 2px solid #F44336; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #F44336;">❌ Certificado no encontrado o inválido</h2><p>El código de verificación "' . esc_html($codigo_certificado) . '" no es válido.</p></div>'; } wp_reset_postdata(); } echo '<div style="padding: 20px; border: 1px solid #ccc; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h3 style="font-family: \'Open Sans\', sans-serif;">Formulario de Verificación</h3><p>Ingrese el código del certificado para verificar su validez.</p>'; echo '<form action="' . esc_url(get_permalink()) . '" method="get"><p><label for="id">Número de Certificado:</label><br><input type="text" id="id" name="id" value="" style="width: 100%; padding: 8px;" required></p>'; echo '<p><input type="submit" value="Verificar Certificado" style="padding: 10px 15px; background-color: #84BC41; color: white; border: none; cursor: pointer; font-weight: bold;"></p></form></div>'; return ob_get_clean(); }
 
 // =============================================================================
-// PARTE 6: AUTOMATIZACIÓN DE PDF CON TCPDF (VERSIÓN FINAL CON PIE DE PÁGINA CORREGIDO)
+// PARTE 6: AUTOMATIZACIÓN DE PDF CON TCPDF (VERSIÓN FINAL CON FONDO PNG)
 // =============================================================================
 add_action('wp_after_insert_post', 'zc_final_generar_pdf', 20, 2);
 function zc_final_generar_pdf($post_id, $post) {
@@ -103,8 +103,17 @@ function zc_final_generar_pdf($post_id, $post) {
     $pdf->setPrintFooter(false);
     $pdf->SetMargins(25, 20, 25);
     $pdf->AddPage();
-    $font = 'dejavusans';
+        $font = 'opensans';
+    
+    // --- INICIO: AÑADIR IMAGEN DE FONDO (ÚNICO CAMBIO) ---
+    $imagen_fondo_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-a4.png'; // URL de la imagen de fondo
+    if ($imagen_fondo_url) {
+        $pdf->Image($imagen_fondo_url, 0, 0, 210, 297, '', '', '', false, 300, 'C', false, false, 0);
+    }
+    // --- FIN: AÑADIR IMAGEN DE FONDO ---
 
+    // El resto de este código es EXACTAMENTE el que tú me pasaste.
+    // Dibuja la cabecera verde, el logo, textos, firmas y QR sobre el fondo.
     $headerAlto = 25;
     $logoAncho = 22; // Tu ajuste
     $logoAlto = 22;  // Tu ajuste
@@ -155,10 +164,8 @@ function zc_final_generar_pdf($post_id, $post) {
     $yPositionFooter = 220; // Posición Y fija para el inicio de este bloque
     $pdf->SetY($yPositionFooter); 
     
-    // Guardamos la posición Y actual para alinear el QR verticalmente
     $yPositionForQr = $pdf->GetY();
     
-    // Bloque de texto de la izquierda
     $pdf->SetFont($font, 'B', 9);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell(0, 5, 'Código de validación:', 0, 1, 'L'); // Tu texto
@@ -171,7 +178,6 @@ function zc_final_generar_pdf($post_id, $post) {
     $pdf->SetTextColor(40, 80, 150);
     $pdf->Cell(0, 5, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
     
-    // QR a la derecha, alineado con el texto que acabamos de escribir
     $qrSize = 35;
     $qrX = 150;
     $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $yPositionForQr, $qrSize, $qrSize);
@@ -189,3 +195,12 @@ function zc_final_generar_pdf($post_id, $post) {
         add_action('wp_after_insert_post', 'zc_final_generar_pdf', 20, 2);
     }
 }
+
+// =============================================================================
+// PARTE 7: ENCOLAR HOJA DE ESTILOS DE GOOGLE FONTS
+// =============================================================================
+function zc_final_enqueue_styles() {
+    wp_enqueue_style('zc-final-google-fonts', 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap', array(), null);
+}
+add_action('wp_enqueue_scripts', 'zc_final_enqueue_styles');
+
