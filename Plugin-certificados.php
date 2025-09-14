@@ -108,7 +108,7 @@ function zc_final_generar_pdf($post_id, $post) {
     $headerAlto = 25;
     $logoAncho = 22; // Tu ajuste
     $logoAlto = 22;  // Tu ajuste
-    $logoUrl = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Logo-Zen-3.png'; // URL del logo corregida
+    $logoUrl = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Logo-zen-v2-02-1.png'; // URL del logo corregida
     $pdf->SetFillColor(132, 188, 65);
     $pdf->Rect(0, 0, $pdf->getPageWidth(), $headerAlto, 'F');
     $logoX = ($pdf->getPageWidth() - $logoAncho) / 2;
