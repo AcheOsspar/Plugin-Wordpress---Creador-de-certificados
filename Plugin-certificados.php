@@ -34,6 +34,7 @@ function zc_final_mostrar_campos_html($post) {
     $director = get_post_meta($post->ID, '_certificado_director', true);
     $instructor = get_post_meta($post->ID, '_certificado_instructor', true);
     $pdf_url = get_post_meta($post->ID, '_certificado_pdf_url', true);
+    $diploma_url = get_post_meta($post->ID, '_certificado_diploma_url', true);
     wp_nonce_field('zc_final_guardar_datos', 'zc_final_nonce');
     echo '<p><label><strong>Código de Verificación:</strong><br><input type="text" name="certificado_codigo" value="' . esc_attr($codigo) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Nombre del Participante:</strong><br><input type="text" name="certificado_participante" value="' . esc_attr($participante) . '" style="width:100%;"></label></p>';
@@ -44,7 +45,8 @@ function zc_final_mostrar_campos_html($post) {
     echo '<p><label><strong>Nombre del Director:</strong><br><input type="text" name="certificado_director" value="' . esc_attr($director) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Nombre del Instructor:</strong><br><input type="text" name="certificado_instructor" value="' . esc_attr($instructor) . '" style="width:100%;"></label></p>';
     echo '<hr>';
-    echo '<p style="background-color: #f0f6fc; padding: 15px; border-radius: 4px;"><label><strong>URL del PDF (Automático):</strong><br><input type="url" value="' . esc_attr($pdf_url) . '" style="width:100%; background-color: #eee;" readonly></label></p>';
+    echo '<p style="background-color: #f0f6fc; padding: 15px; border-radius: 4px;"><label><strong>URL del Certificado (Automático):</strong><br><input type="url" value="' . esc_attr($pdf_url) . '" style="width:100%; background-color: #eee;" readonly></label></p>';
+    echo '<p style="background-color: #f0f6fc; padding: 15px; border-radius: 4px;"><label><strong>URL del Diploma (Automático):</strong><br><input type="url" value="' . esc_attr($diploma_url) . '" style="width:100%; background-color: #eee;" readonly></label></p>';
 }
 add_action('save_post_certificado', 'zc_final_guardar_datos', 10, 2);
 function zc_final_guardar_datos($post_id, $post) {
@@ -116,10 +118,11 @@ function zc_final_mostrar_pagina_importador() {
                     if (isset($data['director'])) update_post_meta($post_id, '_certificado_director', sanitize_text_field($data['director'])); 
                     if (isset($data['instructor'])) update_post_meta($post_id, '_certificado_instructor', sanitize_text_field($data['instructor'])); 
                     
-                    // Forzar la (re)generación del PDF con los datos completos
+                    // Forzar la (re)generación de ambos PDFs con los datos completos
                     $post_object = get_post($post_id);
                     if ($post_object) {
                         zc_final_generar_pdf($post_id, $post_object);
+                        zc_final_generar_diploma($post_id, $post_object);
                     }
 
                     $importados++; 
@@ -145,12 +148,14 @@ function zc_final_mostrar_pagina_importador() {
 // PARTE 5: SHORTCODE DE VERIFICACIÓN
 // =============================================================================
 add_shortcode('verificador_de_certificados', 'zc_final_funcion_verificadora');
-function zc_final_funcion_verificadora() { ob_start(); if (isset($_GET['id']) && !empty($_GET['id'])) { $codigo_certificado = sanitize_text_field($_GET['id']); $args = array('post_type' => 'certificado', 'posts_per_page' => 1, 'meta_query' => array(array('key' => '_certificado_codigo', 'value' => $codigo_certificado, 'compare' => '='))); $query = new WP_Query($args); if ($query->have_posts()) { while ($query->have_posts()) { $query->the_post(); $participante = get_post_meta(get_the_ID(), '_certificado_participante', true); $curso = get_post_meta(get_the_ID(), '_certificado_curso', true); $fecha = get_post_meta(get_the_ID(), '_certificado_fecha', true); $pdf_url = get_post_meta(get_the_ID(), '_certificado_pdf_url', true); echo '<div style="border: 2px solid #84BC41; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #84BC41; font-family: \'Open Sans\', sans-serif;">✅ Certificado Válido</h2>'; echo '<p><strong>Participante:</strong> ' . esc_html($participante) . '</p>'; echo '<p><strong>Curso:</strong> ' . esc_html($curso) . '</p>'; echo '<p><strong>Fecha de Emisión:</strong> ' . esc_html($fecha) . '</p>'; echo '<p><strong>Código de Verificación:</strong> ' . esc_html($codigo_certificado) . '</p>'; if (!empty($pdf_url)) { echo '<hr style="margin: 20px 0;">'; echo '<a href="' . esc_url($pdf_url) . '" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #84BC41; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 20px; font-weight: bold;">Descargar Certificado en PDF</a>'; echo '<h4 style="margin-top: 10px; font-family: \'Open Sans\', sans-serif;">Visualización del Certificado</h4>'; $google_viewer_url = 'https://docs.google.com/gview?url=' . urlencode($pdf_url) . '&embedded=true'; echo '<iframe src="' . esc_url($google_viewer_url) . '" width="100%" style="border: 1px solid #ddd; aspect-ratio: 1 / 1.414;"></iframe>'; } echo '</div>'; } } else { echo '<div style="border: 2px solid #F44336; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #F44336;">❌ Certificado no encontrado o inválido</h2><p>El código de verificación "' . esc_html($codigo_certificado) . '" no es válido.</p></div>'; } wp_reset_postdata(); } echo '<div style="padding: 20px; border: 1px solid #ccc; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h3 style="font-family: \'Open Sans\', sans-serif;">Formulario de Verificación</h3><p>Ingrese el código del certificado para verificar su validez.</p>'; echo '<form action="' . esc_url(get_permalink()) . '" method="get"><p><label for="id">Número de Certificado:</label><br><input type="text" id="id" name="id" value="" style="width: 100%; padding: 8px;" required></p>'; echo '<p><input type="submit" value="Verificar Certificado" style="padding: 10px 15px; background-color: #84BC41; color: white; border: none; cursor: pointer; font-weight: bold;"></p></form></div>'; return ob_get_clean(); }
+function zc_final_funcion_verificadora() { ob_start(); if (isset($_GET['id']) && !empty($_GET['id'])) { $codigo_certificado = sanitize_text_field($_GET['id']); $args = array('post_type' => 'certificado', 'posts_per_page' => 1, 'meta_query' => array(array('key' => '_certificado_codigo', 'value' => $codigo_certificado, 'compare' => '='))); $query = new WP_Query($args); if ($query->have_posts()) { while ($query->have_posts()) { $query->the_post(); $participante = get_post_meta(get_the_ID(), '_certificado_participante', true); $curso = get_post_meta(get_the_ID(), '_certificado_curso', true); $fecha = get_post_meta(get_the_ID(), '_certificado_fecha', true); $pdf_url = get_post_meta(get_the_ID(), '_certificado_pdf_url', true); $diploma_url = get_post_meta(get_the_ID(), '_certificado_diploma_url', true); echo '<div style="border: 2px solid #84BC41; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #84BC41; font-family: \'Open Sans\', sans-serif;">✅ Certificado Válido</h2>'; echo '<p><strong>Participante:</strong> ' . esc_html($participante) . '</p>'; echo '<p><strong>Curso:</strong> ' . esc_html($curso) . '</p>'; echo '<p><strong>Fecha de Emisión:</strong> ' . esc_html($fecha) . '</p>'; echo '<p><strong>Código de Verificación:</strong> ' . esc_html($codigo_certificado) . '</p>'; if (!empty($pdf_url) || !empty($diploma_url)) { echo '<hr style="margin: 20px 0;">'; if (!empty($pdf_url)) { echo '<a href="' . esc_url($pdf_url) . '" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #84BC41; color: white; text-decoration: none; border-radius: 4px; margin: 5px; font-weight: bold;">Descargar Certificado</a>'; } if (!empty($diploma_url)) { echo '<a href="' . esc_url($diploma_url) . '" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #337ab7; color: white; text-decoration: none; border-radius: 4px; margin: 5px; font-weight: bold;">Descargar Diploma</a>'; } echo '<h4 style="margin-top: 20px; font-family: \'Open Sans\', sans-serif;">Visualización del Certificado</h4>'; $google_viewer_url = 'https://docs.google.com/gview?url=' . urlencode($pdf_url) . '&embedded=true'; echo '<iframe src="' . esc_url($google_viewer_url) . '" width="100%" style="border: 1px solid #ddd; aspect-ratio: 1 / 1.414;"></iframe>'; } echo '</div>'; } } else { echo '<div style="border: 2px solid #F44336; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #F44336;">❌ Certificado no encontrado o inválido</h2><p>El código de verificación "' . esc_html($codigo_certificado) . '" no es válido.</p></div>'; } wp_reset_postdata(); } echo '<div style="padding: 20px; border: 1px solid #ccc; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h3 style="font-family: \'Open Sans\', sans-serif;">Formulario de Verificación</h3><p>Ingrese el código del certificado para verificar su validez.</p>'; echo '<form action="' . esc_url(get_permalink()) . '" method="get"><p><label for="id">Número de Certificado:</label><br><input type="text" id="id" name="id" value="" style="width: 100%; padding: 8px;" required></p>'; echo '<p><input type="submit" value="Verificar Certificado" style="padding: 10px 15px; background-color: #84BC41; color: white; border: none; cursor: pointer; font-weight: bold;"></p></form></div>'; return ob_get_clean(); }
 
 // =============================================================================
 // PARTE 6: AUTOMATIZACIÓN DE PDF CON TCPDF (VERSIÓN FINAL CON FONDO PNG)
 // =============================================================================
 add_action('wp_after_insert_post', 'zc_final_generar_pdf', 20, 2);
+add_action('wp_after_insert_post', 'zc_final_generar_diploma', 20, 2);
+
 function zc_final_generar_pdf($post_id, $post) {
     if ($post->post_type !== 'certificado' || ($post->post_status !== 'publish' && $post->post_status !== 'draft')) return;
     if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
@@ -300,6 +305,162 @@ function zc_final_generar_pdf($post_id, $post) {
         remove_action('wp_after_insert_post', 'zc_final_generar_pdf', 20);
         update_post_meta($post_id, '_certificado_pdf_url', $file_url);
         add_action('wp_after_insert_post', 'zc_final_generar_pdf', 20, 2);
+    }
+}
+
+// =============================================================================
+// PARTE 6.1: FUNCIÓN PARA GENERAR EL DIPLOMA HORIZONTAL
+// =============================================================================
+function zc_final_generar_diploma($post_id, $post) {
+    if ($post->post_type !== 'certificado' || ($post->post_status !== 'publish' && $post->post_status !== 'draft')) return;
+    if (defined('DOING_AUTOSAVE') && DOING_AUTOSAVE) return;
+
+    $tcpdf_path = plugin_dir_path(__FILE__) . 'TCPDF/tcpdf.php';
+    if (!file_exists($tcpdf_path)) {
+        update_post_meta($post_id, '_certificado_diploma_url', 'Error: Libreria TCPDF no encontrada.');
+        return;
+    }
+    require_once $tcpdf_path;
+
+    // Obtener datos
+    $codigo = get_post_meta($post_id, '_certificado_codigo', true);
+    $participante = get_post_meta($post_id, '_certificado_participante', true);
+    $curso = get_post_meta($post_id, '_certificado_curso', true);
+    $fecha = get_post_meta($post_id, '_certificado_fecha', true);
+    $director = get_post_meta($post_id, '_certificado_director', true) ?: 'Nombre Director';
+    $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: 'Nombre Instructor';
+    $empresa = get_post_meta($post_id, '_certificado_empresa', true); // Obtener el dato de la empresa
+    $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
+
+    // --- DISEÑO DEL DIPLOMA (HORIZONTAL) ---
+    $pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false); // 'L' para Landscape (Horizontal)
+    $pdf->setPrintHeader(false);
+    $pdf->setPrintFooter(false);
+    $pdf->SetMargins(20, 15, 20);
+    $pdf->AddPage();
+    $font = 'opensans';
+
+    // --- INICIO: AÑADIR IMAGEN DE FONDO DEL DIPLOMA ---
+    // !! IMPORTANTE: Reemplaza esta URL con la URL de tu imagen de fondo para el diploma horizontal.
+    $imagen_fondo_diploma_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/diploma-zenactivo.png'; 
+    if ($imagen_fondo_diploma_url) {
+        $pdf->SetAutoPageBreak(false, 0);
+        // Las dimensiones para A4 horizontal son 297x210 mm
+        $pdf->Image($imagen_fondo_diploma_url, 0, 0, 297, 210, '', '', '', false, 300, '', false, false, 0);
+        $pdf->SetAutoPageBreak(true, 15); // Margen inferior
+    }
+    // --- FIN: AÑADIR IMAGEN DE FONDO ---
+
+    // Coordenada X inicial para el contenido (para dejar espacio al logo de la izquierda)
+    $contentX = 85;
+    $pdf->SetX($contentX);
+
+    // --- INICIO: CONTENIDO DEL DIPLOMA AJUSTADO Y CENTRADO ---
+
+    // Título "CERTIFICADO"
+    $pdf->SetY(25);
+    $pdf->SetFont($font, 'B', 36);
+    $pdf->SetTextColor(50, 50, 50);
+    $pdf->Cell(0, 15, 'CERTIFICADO', 0, 1, 'C');
+
+    // Subtítulo "ZEN ACTIVO"
+    $pdf->SetFont($font, 'B', 18);
+    $pdf->SetTextColor(132, 188, 65);
+    $pdf->Cell(0, 10, 'ZEN ACTIVO', 0, 1, 'C');
+    $pdf->Ln(5);
+
+    // Barra verde con texto (ya está centrada)
+    $pdf->SetFillColor(132, 188, 65);
+    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetFont($font, 'B', 12);
+    $pdf->Cell(0, 10, 'POR LA PRESENTE CERTIFICA QUE', 0, 1, 'C', true);
+    $pdf->Ln(8);
+
+    // Nombre del Participante
+    $pdf->SetFont($font, 'B', 26);
+    $pdf->SetTextColor(50, 50, 50);
+    $pdf->Cell(0, 15, $participante, 0, 1, 'C');
+
+    // Empresa (si existe)
+    if (!empty($empresa)) {
+        $pdf->SetFont($font, '', 11);
+        $pdf->SetTextColor(80, 80, 80);
+        // Se usa HTML para poder centrar el texto mixto (normal y negrita)
+        $empresa_html = 'Empresa o Particular: <b>' . esc_html($empresa) . '</b>';
+        $pdf->writeHTMLCell(0, 0, '', '', $empresa_html, 0, 1, 0, true, 'C', true);
+        $pdf->Ln(8);
+    }
+
+    // Texto "Por haber completado..."
+    $pdf->SetFont($font, '', 11);
+    $pdf->SetTextColor(80, 80, 80);
+    $pdf->Cell(0, 10, 'Por haber completado satisfactoriamente el curso de:', 0, 1, 'C');
+    
+    // Nombre del curso
+    $pdf->SetFont($font, 'B', 18);
+    $pdf->SetTextColor(132, 188, 65);
+    $pdf->MultiCell(0, 12, $curso, 0, 'C');
+    $pdf->Ln(15);
+
+    // --- SECCIÓN DE FIRMAS (CENTRADO HORIZONTAL) ---
+    $yFirmas = 150;
+    $pdf->SetY($yFirmas);
+
+    $pdf->SetFont($font, 'B', 12);
+    $pdf->SetTextColor(50, 50, 50);
+
+    // Posiciones X para las firmas
+    $firmaDirectorX = 60;
+    $firmaInstructorX = 297 - 60 - 80; // Margen derecho
+
+    // Nombres
+    $pdf->SetXY($firmaDirectorX, $yFirmas);
+    $pdf->Cell(80, 10, $director, 0, 0, 'C');
+    $pdf->SetXY($firmaInstructorX, $yFirmas);
+    $pdf->Cell(80, 10, $instructor, 0, 1, 'C');
+
+    // Líneas
+    $yLinea = $yFirmas + 8;
+    $pdf->Line($firmaDirectorX, $yLinea, $firmaDirectorX + 80, $yLinea);
+    $pdf->Line($firmaInstructorX, $yLinea, $firmaInstructorX + 80, $yLinea);
+    
+    // Títulos
+    $pdf->SetFont($font, 'B', 10);
+    $pdf->SetTextColor(80, 80, 80);
+    $pdf->SetXY($firmaDirectorX, $yLinea);
+    $pdf->Cell(80, 10, 'Firma Director', 0, 0, 'C');
+    $pdf->SetXY($firmaInstructorX, $yLinea);
+    $pdf->Cell(80, 10, 'Firma Instructor', 0, 1, 'C');
+
+    // --- QR Y DATOS DE VERIFICACIÓN (ESQUINA INFERIOR DERECHA) ---
+    $yFooter = 180;
+    $xFooter = 220;
+    $pdf->SetXY($xFooter, $yFooter);
+    $pdf->SetFont($font, 'B', 8);
+    $pdf->SetTextColor(80, 80, 80);
+    $pdf->Cell(0, 4, 'Valida este diploma en:', 0, 1, 'L');
+    $pdf->SetFont($font, 'U', 8);
+    $pdf->SetTextColor(40, 80, 150);
+    $pdf->Cell(0, 4, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
+    $pdf->SetFont($font, '', 8);
+    $pdf->SetTextColor(80, 80, 80);
+    $pdf->Cell(0, 4, 'Código: ' . $codigo, 0, 1, 'L');
+
+    $qrSize = 25;
+    $qrX = 297 - $qrSize - 15; // A la derecha
+    $qrY = 210 - $qrSize - 15; // Abajo
+    $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $qrY, $qrSize, $qrSize);
+
+    // --- FIN DEL DISEÑO ---
+    $pdf_content = $pdf->Output('', 'S');
+    
+    // Subir a Medios y guardar URL
+    $file_name = 'diploma-' . sanitize_title($participante) . '-' . $post_id . '.pdf';
+    $upload = wp_upload_bits($file_name, null, $pdf_content);
+    if (empty($upload['error'])) {
+        $file_url = $upload['url'];
+        // No es necesario remover y añadir la acción aquí si se llama explícitamente
+        update_post_meta($post_id, '_certificado_diploma_url', $file_url);
     }
 }
 
