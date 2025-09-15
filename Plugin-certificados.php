@@ -1,8 +1,8 @@
 <?php
 /**
- * Plugin Name:       Zen Certificados (Versión Definitiva)
+ * Plugin Name:       Zen Certificados (Generador de Certificados)
  * Description:       Plugin a medida para crear, gestionar, importar y validar certificados con PDFs y QR.
- * Version:           8.2 - Corrección de Pie de Página
+ * Version:           8.4 - Sistema completo para Zen Activo
  * Author:            Alain Ossandon
  */
 
@@ -30,6 +30,7 @@ function zc_final_mostrar_campos_html($post) {
     $participante = get_post_meta($post->ID, '_certificado_participante', true);
     $curso = get_post_meta($post->ID, '_certificado_curso', true);
     $fecha = get_post_meta($post->ID, '_certificado_fecha', true);
+    $empresa = get_post_meta($post->ID, '_certificado_empresa', true);
     $director = get_post_meta($post->ID, '_certificado_director', true);
     $instructor = get_post_meta($post->ID, '_certificado_instructor', true);
     $pdf_url = get_post_meta($post->ID, '_certificado_pdf_url', true);
@@ -38,6 +39,7 @@ function zc_final_mostrar_campos_html($post) {
     echo '<p><label><strong>Nombre del Participante:</strong><br><input type="text" name="certificado_participante" value="' . esc_attr($participante) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Curso:</strong><br><input type="text" name="certificado_curso" value="' . esc_attr($curso) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Fecha de Emisión:</strong><br><input type="date" name="certificado_fecha" value="' . esc_attr($fecha) . '"></label></p>';
+    echo '<p><label><strong>Empresa o Particular:</strong><br><input type="text" name="certificado_empresa" value="' . esc_attr($empresa) . '" style="width:100%;"></label></p>';
     echo '<h3>Firmas</h3>';
     echo '<p><label><strong>Nombre del Director:</strong><br><input type="text" name="certificado_director" value="' . esc_attr($director) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Nombre del Instructor:</strong><br><input type="text" name="certificado_instructor" value="' . esc_attr($instructor) . '" style="width:100%;"></label></p>';
@@ -53,6 +55,7 @@ function zc_final_guardar_datos($post_id, $post) {
     if (isset($_POST['certificado_participante'])) update_post_meta($post_id, '_certificado_participante', sanitize_text_field($_POST['certificado_participante']));
     if (isset($_POST['certificado_curso'])) update_post_meta($post_id, '_certificado_curso', sanitize_text_field($_POST['certificado_curso']));
     if (isset($_POST['certificado_fecha'])) update_post_meta($post_id, '_certificado_fecha', sanitize_text_field($_POST['certificado_fecha']));
+    if (isset($_POST['certificado_empresa'])) update_post_meta($post_id, '_certificado_empresa', sanitize_text_field($_POST['certificado_empresa']));
     if (isset($_POST['certificado_director'])) update_post_meta($post_id, '_certificado_director', sanitize_text_field($_POST['certificado_director']));
     if (isset($_POST['certificado_instructor'])) update_post_meta($post_id, '_certificado_instructor', sanitize_text_field($_POST['certificado_instructor']));
 }
@@ -164,6 +167,7 @@ function zc_final_generar_pdf($post_id, $post) {
     $participante = get_post_meta($post_id, '_certificado_participante', true);
     $curso = get_post_meta($post_id, '_certificado_curso', true);
     $fecha = get_post_meta($post_id, '_certificado_fecha', true);
+    $empresa = get_post_meta($post_id, '_certificado_empresa', true);
     $director = get_post_meta($post_id, '_certificado_director', true) ?: 'Nombre Director'; // Valor por defecto si está vacío
     $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: 'Nombre Instructor'; // Valor por defecto
     $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
@@ -174,14 +178,22 @@ function zc_final_generar_pdf($post_id, $post) {
     $pdf->setPrintFooter(false);
     $pdf->SetMargins(25, 20, 25);
     $pdf->AddPage();
-        $font = 'opensans';
-    
-    // --- INICIO: AÑADIR IMAGEN DE FONDO (ÚNICO CAMBIO) ---
-    $imagen_fondo_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-a4.png'; // URL de la imagen de fondo
+    $font = 'opensans';
+
+    // --- INICIO: AÑADIR IMAGEN DE FONDO ---
+    $imagen_fondo_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-a4-2.png'; // URL de la imagen de fondo
     if ($imagen_fondo_url) {
-        $pdf->Image($imagen_fondo_url, 0, 0, 210, 297, '', '', '', false, 300, 'C', false, false, 0);
+        // Desactivar márgenes automáticos temporalmente
+        $pdf->SetAutoPageBreak(false, 0);
+        // Colocar la imagen de fondo cubriendo toda la página
+        $pdf->Image($imagen_fondo_url, 0, 0, 210, 297, '', '', '', false, 300, '', false, false, 0);
+        // Reactivar los márgenes para el contenido
+        $pdf->SetAutoPageBreak(true, 20); // El segundo parámetro es el margen inferior
     }
     // --- FIN: AÑADIR IMAGEN DE FONDO ---
+
+    // Restaurar el punto de inicio para el contenido
+    $pdf->setY(20);
 
     // El resto de este código es EXACTAMENTE el que tú me pasaste.
     // Dibuja la cabecera verde, el logo, textos, firmas y QR sobre el fondo.
@@ -198,7 +210,7 @@ function zc_final_generar_pdf($post_id, $post) {
     $pdf->SetY($headerAlto + 20);
     $pdf->SetFont($font, 'B', 24);
     $pdf->SetTextColor(132, 188, 65);
-    $pdf->Cell(0, 15, 'Certificado de Logro', 0, 1, 'L'); // Tu texto
+    $pdf->Cell(0, 15, 'Certificado de Originalidad', 0, 1, 'L'); // Tu texto
     $pdf->Line(25, $pdf->GetY() + 2, 185, $pdf->GetY() + 2);
     $pdf->Ln(15);
 
@@ -206,6 +218,15 @@ function zc_final_generar_pdf($post_id, $post) {
     $pdf->SetTextColor(50, 50, 50);
     $pdf->Cell(0, 15, $participante, 0, 1, 'L');
     $pdf->Ln(5);
+
+    if (!empty($empresa)) {
+        $pdf->SetFont($font, '', 11);
+        $pdf->SetTextColor(80, 80, 80);
+        $pdf->Write(10, 'Empresa o Particular: ');
+        $pdf->SetFont($font, 'B', 11);
+        $pdf->Write(10, $empresa);
+        $pdf->Ln(10);
+    }
 
     $pdf->SetFont($font, '', 11);
     $pdf->SetTextColor(80, 80, 80);
