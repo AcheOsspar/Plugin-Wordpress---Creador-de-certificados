@@ -388,26 +388,31 @@ EOD;
     $pdf->SetX($firmaInstructorX);
     $pdf->Cell(80, 10, 'Firma Instructor', 0, 1, 'C');
 
-    // --- QR Y DATOS DE VERIFICACIÓN (POSICIÓN FIJA AL FINAL) ---
-    $yFooter = $pdf->getPageHeight() - 35;
-    $pdf->SetY($yFooter);
-    $pdf->SetFont($font, 'B', 8);
+    // --- PIE DE PÁGINA CON TEXTO Y QR (POSICIÓN CORREGIDA Y ALINEADA) ---
+    $yPositionFooter = 220; // Posición Y fija para el inicio de este bloque
+    $pdf->SetY($yPositionFooter); 
+    
+    $yPositionForQr = $pdf->GetY();
+    
+    $pdf->SetFont($font, 'B', 9);
     $pdf->SetTextColor(80, 80, 80);
-    $pdf->Cell(50, 4, 'Valida este certificado en:', 0, 0, 'L');
-    $pdf->SetFont($font, 'U', 8);
+    $pdf->Cell(0, 5, 'Código de validación:', 0, 1, 'L');
+    $pdf->SetFont($font, '', 9);
+    $pdf->Cell(0, 5, $codigo, 0, 1, 'L');
+    $pdf->Ln(2);
+    $pdf->SetFont($font, 'B', 9);
+    $pdf->Cell(0, 5, 'Verifica este certificado en:', 0, 1, 'L');
+    $pdf->SetFont($font, 'U', 9);
     $pdf->SetTextColor(40, 80, 150);
-    $pdf->Cell(0, 4, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
-    $pdf->SetX($pdf->GetX());
-    $pdf->SetFont($font, '', 8);
-    $pdf->SetTextColor(80, 80, 80);
-    $pdf->Cell(50, 4, 'Código: ' . $codigo, 0, 1, 'L');
+    $pdf->Cell(0, 5, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
+    
+    $qrSize = 35;
+    $qrX = 150;
+    $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $yPositionForQr, $qrSize, $qrSize);
 
-    $qrSize = 25;
-    $qrX = 210 - $qrSize - 15;
-    $qrY = $pdf->getPageHeight() - $qrSize - 10;
-    $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $qrY, $qrSize, $qrSize);
-
-    // --- FIN DEL DISEÑO ---
+    // Limpiar el buffer de salida
+    ob_end_clean();
+    
     $pdf_content = $pdf->Output('', 'S');
     
     $file_name = 'certificado-' . sanitize_title($empresa) . '-' . $post_id . '.pdf';
@@ -545,14 +550,14 @@ function zc_final_generar_diploma($post_id, $post) {
     $pdf->Cell(0, 4, 'Valida este diploma en:', 0, 1, 'L');
     $pdf->SetFont($font, 'U', 8);
     $pdf->SetTextColor(40, 80, 150);
-    $pdf->Cell(0, 4, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina_de_verificacion-test/'));
+    $pdf->Cell(0, 4, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
     $pdf->SetFont($font, '', 8);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell(0, 4, 'Código: ' . $codigo, 0, 1, 'L');
 
     $qrSize = 25;
     $qrX = 297 - $qrSize - 15; // A la derecha
-    $qrY = 150 - $qrSize - 15; // Abajo
+    $qrY = 210 - $qrSize - 15; // Abajo
     $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $qrY, $qrSize, $qrSize);
 
     // --- FIN DEL DISEÑO ---
@@ -575,3 +580,5 @@ function zc_final_enqueue_styles() {
     wp_enqueue_style('zc-final-google-fonts', 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap', array(), null);
 }
 add_action('wp_enqueue_scripts', 'zc_final_enqueue_styles');
+
+
