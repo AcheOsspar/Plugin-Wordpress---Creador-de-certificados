@@ -61,39 +61,68 @@ function zc_final_mostrar_campos_html($post) {
     $pdf_url = get_post_meta($post->ID, '_certificado_pdf_url', true);
     $diploma_url = get_post_meta($post->ID, '_certificado_diploma_url', true);
     
+    // 🔧 NUEVOS CAMPOS PARA FIRMAS PERSONALIZADAS
+    $firma_director_url = get_post_meta($post->ID, '_certificado_firma_director_url', true);
+    $firma_instructor_url = get_post_meta($post->ID, '_certificado_firma_instructor_url', true);
+    
     wp_nonce_field('zc_final_guardar_datos', 'zc_final_nonce');
 
     // Se mantiene el campo de participante individual, que ahora puede ser opcional o usarse para el diploma
     $participante = get_post_meta($post->ID, '_certificado_participante', true);
-    echo '<h3>Datos Generales</h3>';
-    echo '<p><label><strong>Código de Verificación:</strong><br><input type="text" name="certificado_codigo" value="' . esc_attr($codigo) . '" style="width:100%;"></label></p>';
-    echo '<p><label><strong>Nombre de la Empresa:</strong><br><input type="text" name="certificado_empresa" value="' . esc_attr($empresa) . '" style="width:100%;"></label></p>';
-    echo '<p><label><strong>Nombre del Curso:</strong><br><input type="text" name="certificado_curso" value="' . esc_attr($curso) . '" style="width:100%;"></label></p>';
     
-    echo '<h3>Datos del Curso (para Certificado de Asistencia)</h3>';
+    echo '<div class="zc-admin-section">';
+    echo '<h3 class="datos-generales">Datos Generales</h3>';
+    echo '<p><label><strong>Código de Verificación:</strong><br><input type="text" name="certificado_codigo" value="' . esc_attr($codigo) . '" style="width:100%;"></label></p>';
+    echo '<p><label><strong>Nombre del Participante:</strong><br><input type="text" name="certificado_empresa" value="' . esc_attr($empresa) . '" style="width:100%;"></label></p>';
+    echo '<p><label><strong>Nombre del Curso:</strong><br><input type="text" name="certificado_curso" value="' . esc_attr($curso) . '" style="width:100%;"></label></p>';
+    echo '</div>';
+    
+    echo '<div class="zc-admin-section">';
+    echo '<h3 class="datos-curso">Datos del Curso</h3>';
     echo '<p><label><strong>Duración (ej: 03 horas cronológicas):</strong><br><input type="text" name="certificado_duracion" value="' . esc_attr($duracion) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Fecha de Emisión:</strong><br><input type="date" name="certificado_fecha" value="' . esc_attr($fecha) . '"></label></p>';
     echo '<p><label><strong>Fecha de Realización:</strong><br><input type="date" name="certificado_fecha_realizacion" value="' . esc_attr($fecha_realizacion) . '"></label></p>';
     echo '<p><label><strong>Fecha de Expiración:</strong><br><input type="date" name="certificado_fecha_expiracion" value="' . esc_attr($fecha_expiracion) . '"></label></p>';
     echo '<p><label><strong>O.C. Cliente:</strong><br><input type="text" name="certificado_oc_cliente" value="' . esc_attr($oc_cliente) . '" style="width:100%;"></label></p>';
+    echo '</div>';
 
-    echo '<h3>Participante (individual)</h3>';
-    echo '<p><label for="listado_participantes"><strong>Participantes:</strong></label><br>';
+    echo '<div class="zc-admin-section">';
+    echo '<h3 class="participantes">Participantes</h3>';
+    echo '<p><label for="listado_participantes"><strong>Lista de Participantes:</strong></label><br>';
     echo '<textarea name="certificado_listado_participantes" id="listado_participantes" rows="10" style="width:100%; font-family: monospace;">' . esc_textarea($listado_participantes) . '</textarea>';
-    echo '<p class="description"><strong>Instrucciones:</strong> Ingrese un participante por línea. Use comas (,) para separar las columnas en el siguiente orden:<br><code>Nombre Completo,RUT,Asistencia,Nota T.,Nota S.,Nota Final,Aprobación</code><br>Ejemplo: <code>Apolinar Andrés Mendoza Cuno,22.626.949-9,100%,7.0,7.0,7.0,A</code></p>';
+    echo '<div class="zc-warning-box"><strong>Instrucciones:</strong> Ingrese un participante por línea. Use comas (,) para separar las columnas en el siguiente orden:<br><code>Nombre Completo,RUT,Asistencia,Nota T.,Nota S.,Nota Final,Aprobación</code><br>Ejemplo: <code>Apolinar Andrés Mendoza Cuno,22.626.949-9,100%,7.0,7.0,7.0,A</code></div>';
 
-    echo '<h3>Datos para Diploma Individual (Opcional)</h3>';
     echo '<p><label><strong>Nombre del Participante (para diploma individual):</strong><br><input type="text" name="certificado_participante" value="' . esc_attr($participante) . '" style="width:100%;"></label></p>';
-    echo '<p class="description">Este nombre se usará para generar el diploma individual. Si el certificado es solo para la empresa, puede dejarlo vacío.</p>';
+    echo '<div class="zc-info-box"><h3>Información</h3>Este nombre se usará para generar el diploma individual. Si el certificado es solo para la empresa, puede dejarlo vacío.</div>';
+    echo '</div>';
 
-    echo '<h3>Firmas</h3>';
+    echo '<div class="zc-admin-section">';
+    echo '<h3 class="firmas">Firmas</h3>';
     echo '<p><label><strong>Nombre del Director:</strong><br><input type="text" name="certificado_director" value="' . esc_attr($director) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Nombre del Instructor:</strong><br><input type="text" name="certificado_instructor" value="' . esc_attr($instructor) . '" style="width:100%;"></label></p>';
     
-    echo '<hr>';
+    echo '<div class="zc-info-box">';
+    echo '<h3>📝 Firmas Personalizadas (Opcional)</h3>';
+    echo '<p>Puedes agregar URLs de imágenes PNG para personalizar las firmas en los PDFs. Si no especificas URLs, se usará la firma por defecto.</p>';
+    echo '</div>';
+    
+    echo '<p><label><strong>URL Firma del Director (PNG):</strong><br><input type="url" name="certificado_firma_director_url" value="' . esc_attr($firma_director_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-director.png"></label></p>';
+    echo '<p><label><strong>URL Firma del Instructor (PNG):</strong><br><input type="url" name="certificado_firma_instructor_url" value="' . esc_attr($firma_instructor_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-instructor.png"></label></p>';
+    
+    echo '<div class="zc-warning-box">';
+    echo '<strong>💡 URLs de Firmas por Defecto:</strong><br>';
+    echo '• <strong>Firma por defecto:</strong> <code>https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-muestra-scaled.png</code><br>';
+    echo '• Para cambiar las firmas globalmente, reemplaza esta URL en el código o usa los campos de arriba para certificados específicos.<br>';
+    echo '• <strong>Tamaño recomendado:</strong> 400x200 píxeles, fondo transparente PNG';
+    echo '</div>';
+    
+    echo '</div>';
+    
+    echo '<div class="zc-url-section">';
     echo '<h3>URLs de Documentos Generados</h3>';
-    echo '<p style="background-color: #f0f6fc; padding: 15px; border-radius: 4px;"><label><strong>URL del Certificado (Automático):</strong><br><input type="url" value="' . esc_attr($pdf_url) . '" style="width:100%; background-color: #eee;" readonly></label></p>';
-    echo '<p style="background-color: #eaf2fa; padding: 15px; border-radius: 4px;"><label><strong>URL del Diploma (Automático):</strong><br><input type="url" value="' . esc_attr($diploma_url) . '" style="width:100%; background-color: #eee;" readonly></label></p>';
+    echo '<p><label><strong>URL del Certificado (Automático):</strong><br><input type="url" value="' . esc_attr($pdf_url) . '" style="width:100%;" readonly></label></p>';
+    echo '<p><label><strong>URL del Diploma (Automático):</strong><br><input type="url" value="' . esc_attr($diploma_url) . '" style="width:100%;" readonly></label></p>';
+    echo '</div>';
 }
 add_action('save_post_certificado', 'zc_final_guardar_datos', 10, 2);
 function zc_final_guardar_datos($post_id, $post) {
@@ -116,6 +145,10 @@ function zc_final_guardar_datos($post_id, $post) {
     if (isset($_POST['certificado_fecha_expiracion'])) update_post_meta($post_id, '_certificado_fecha_expiracion', sanitize_text_field($_POST['certificado_fecha_expiracion']));
     if (isset($_POST['certificado_oc_cliente'])) update_post_meta($post_id, '_certificado_oc_cliente', sanitize_text_field($_POST['certificado_oc_cliente']));
     if (isset($_POST['certificado_listado_participantes'])) update_post_meta($post_id, '_certificado_listado_participantes', sanitize_textarea_field($_POST['certificado_listado_participantes']));
+    
+    // 🔧 NUEVOS CAMPOS PARA FIRMAS PERSONALIZADAS
+    if (isset($_POST['certificado_firma_director_url'])) update_post_meta($post_id, '_certificado_firma_director_url', esc_url_raw($_POST['certificado_firma_director_url']));
+    if (isset($_POST['certificado_firma_instructor_url'])) update_post_meta($post_id, '_certificado_firma_instructor_url', esc_url_raw($_POST['certificado_firma_instructor_url']));
 }
 
 // =============================================================================
@@ -206,6 +239,9 @@ function zc_final_mostrar_pagina_importador() {
 add_shortcode('verificador_de_certificados', 'zc_final_funcion_verificadora');
 function zc_final_funcion_verificadora() { 
     ob_start(); 
+    ?>
+    <div class="zc-validador-container">
+    <?php
     
     if (isset($_GET['id']) && !empty($_GET['id'])) { 
         $codigo_certificado = sanitize_text_field($_GET['id']); 
@@ -233,26 +269,42 @@ function zc_final_funcion_verificadora() {
                 $fecha = get_post_meta(get_the_ID(), '_certificado_fecha', true); 
                 $pdf_url = get_post_meta(get_the_ID(), '_certificado_pdf_url', true); 
                 $diploma_url = get_post_meta(get_the_ID(), '_certificado_diploma_url', true); 
+                ?>
                 
-                echo '<div style="border: 2px solid #84BC41; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #84BC41; font-family: \'Open Sans\', sans-serif;">✅ Certificado Individual Válido</h2>'; 
-                echo '<p><strong>Participante:</strong> ' . esc_html($participante) . '</p>'; 
-                echo '<p><strong>Curso:</strong> ' . esc_html($curso) . '</p>'; 
-                echo '<p><strong>Fecha de Emisión:</strong> ' . esc_html($fecha) . '</p>'; 
-                echo '<p><strong>Código de Verificación:</strong> ' . esc_html($codigo_certificado) . '</p>'; 
+                <div class="zc-resultado-valido">
+                    <h2>¡Certificado Individual Válido!</h2>
+                    <div class="zc-info-certificado">
+                        <p><strong>Participante:</strong> <?php echo esc_html($participante); ?></p>
+                        <p><strong>Curso:</strong> <?php echo esc_html($curso); ?></p>
+                        <p><strong>Fecha de Emisión:</strong> <?php echo esc_html($fecha); ?></p>
+                        <p><strong>Código de Verificación:</strong> <?php echo esc_html($codigo_certificado); ?></p>
+                    </div>
+                    
+                    <?php if (!empty($pdf_url) || !empty($diploma_url)): ?>
+                        <div class="zc-botones-descarga">
+                            <?php if (!empty($pdf_url)): ?>
+                                <a href="<?php echo esc_url($pdf_url); ?>" target="_blank" class="zc-btn-descargar zc-btn-certificado">
+                                    Descargar Certificado
+                                </a>
+                            <?php endif; ?>
+                            
+                            <?php if (!empty($diploma_url)): ?>
+                                <a href="<?php echo esc_url($diploma_url); ?>" target="_blank" class="zc-btn-descargar zc-btn-diploma">
+                                    Descargar Diploma
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                        
+                        <?php if (!empty($pdf_url)): ?>
+                            <div class="zc-pdf-viewer">
+                                <h4><i class="fas fa-file-pdf"></i> Visualización del Certificado</h4>
+                                <iframe src="https://docs.google.com/gview?url=<?php echo urlencode($pdf_url); ?>&embedded=true" width="100%" height="600"></iframe>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                </div>
                 
-                if (!empty($pdf_url) || !empty($diploma_url)) { 
-                    echo '<hr style="margin: 20px 0;">'; 
-                    if (!empty($pdf_url)) { 
-                        echo '<a href="' . esc_url($pdf_url) . '" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #84BC41; color: white; text-decoration: none; border-radius: 4px; margin: 5px; font-weight: bold;">Descargar Certificado</a>'; 
-                    } 
-                    if (!empty($diploma_url)) { 
-                        echo '<a href="' . esc_url($diploma_url) . '" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #337ab7; color: white; text-decoration: none; border-radius: 4px; margin: 5px; font-weight: bold;">Descargar Diploma</a>'; 
-                    } 
-                    echo '<h4 style="margin-top: 20px; font-family: \'Open Sans\', sans-serif;">Visualización del Certificado</h4>'; 
-                    $google_viewer_url = 'https://docs.google.com/gview?url=' . urlencode($pdf_url) . '&embedded=true'; 
-                    echo '<iframe src="' . esc_url($google_viewer_url) . '" width="100%" style="border: 1px solid #ddd; aspect-ratio: 1 / 1.414;"></iframe>'; 
-                } 
-                echo '</div>'; 
+                <?php
             } 
         } else {
             // 🎯 PASO 2: Buscar en certificados grupales
@@ -283,41 +335,75 @@ function zc_final_funcion_verificadora() {
                     $participantes_array = explode("\n", trim($listado_participantes));
                     $num_participantes = count(array_filter($participantes_array, 'trim'));
                     
-                    echo '<div style="border: 2px solid #2e7d32; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #2e7d32; font-family: \'Open Sans\', sans-serif;">✅ Certificado Grupal Válido</h2>'; 
-                    echo '<p><strong>Empresa:</strong> ' . esc_html($empresa) . '</p>'; 
-                    echo '<p><strong>Curso:</strong> ' . esc_html($curso) . '</p>'; 
-                    echo '<p><strong>Fecha de Emisión:</strong> ' . esc_html($fecha) . '</p>'; 
-                    echo '<p><strong>Participantes:</strong> ' . $num_participantes . ' personas</p>'; 
-                    echo '<p><strong>Código de Verificación:</strong> ' . esc_html($codigo_certificado) . '</p>'; 
+                    $diplomas_url = zc_grupal_obtener_url_diplomas_compilados(get_the_ID());
+                    ?>
                     
-                    if (!empty($pdf_url)) { 
-                        echo '<hr style="margin: 20px 0;">'; 
-                        echo '<a href="' . esc_url($pdf_url) . '" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #2e7d32; color: white; text-decoration: none; border-radius: 4px; margin: 5px; font-weight: bold;">Descargar Certificado Grupal</a>'; 
+                    <div class="zc-resultado-grupal">
+                        <h2>¡Certificado Grupal Válido!</h2>
+                        <div class="zc-info-certificado">
+                            <p><strong>Empresa:</strong> <?php echo esc_html($empresa); ?></p>
+                            <p><strong>Curso:</strong> <?php echo esc_html($curso); ?></p>
+                            <p><strong>Fecha de Emisión:</strong> <?php echo esc_html($fecha); ?></p>
+                            <p><strong>Participantes:</strong> <?php echo $num_participantes; ?> personas</p>
+                            <p><strong>Código de Verificación:</strong> <?php echo esc_html($codigo_certificado); ?></p>
+                        </div>
                         
-                        // 🎯 BOTÓN PARA VER DIPLOMAS COMPILADOS
-                        $diplomas_url = zc_grupal_obtener_url_diplomas_compilados(get_the_ID());
-                        if (!empty($diplomas_url)) {
-                            echo '<a href="' . esc_url($diplomas_url) . '" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #1976d2; color: white; text-decoration: none; border-radius: 4px; margin: 5px; font-weight: bold;">Ver Diplomas del Grupo</a>'; 
-                        }
-                        
-                        echo '<h4 style="margin-top: 20px; font-family: \'Open Sans\', sans-serif;">Visualización del Certificado Grupal</h4>'; 
-                        $google_viewer_url = 'https://docs.google.com/gview?url=' . urlencode($pdf_url) . '&embedded=true'; 
-                        echo '<iframe src="' . esc_url($google_viewer_url) . '" width="100%" style="border: 1px solid #ddd; aspect-ratio: 1 / 1.414;"></iframe>'; 
-                    } 
-                    echo '</div>'; 
+                        <?php if (!empty($pdf_url)): ?>
+                            <div class="zc-botones-descarga">
+                                <a href="<?php echo esc_url($pdf_url); ?>" target="_blank" class="zc-btn-descargar zc-btn-grupal">
+                                    Descargar Certificado Grupal
+                                </a>
+                                
+                                <?php if (!empty($diplomas_url)): ?>
+                                    <a href="<?php echo esc_url($diplomas_url); ?>" target="_blank" class="zc-btn-descargar zc-btn-diploma">
+                                        Ver Diplomas del Grupo
+                                    </a>
+                                <?php endif; ?>
+                            </div>
+                            
+                            <div class="zc-pdf-viewer">
+                                <h4><i class="fas fa-file-pdf"></i> Visualización del Certificado Grupal</h4>
+                                <iframe src="https://docs.google.com/gview?url=<?php echo urlencode($pdf_url); ?>&embedded=true" width="100%" height="600"></iframe>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <?php
                 } 
             } else {
                 // ❌ NO ENCONTRADO EN NINGÚN LUGAR
-                echo '<div style="border: 2px solid #F44336; padding: 20px; text-align: center; margin-bottom: 30px; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h2 style="color: #F44336;">❌ Certificado no encontrado o inválido</h2><p>El código de verificación "' . esc_html($codigo_certificado) . '" no es válido.</p></div>'; 
+                ?>
+                <div class="zc-resultado-error">
+                    <h2>Código No Encontrado</h2>
+                    <p>El código de verificación <strong><?php echo esc_html($codigo_certificado); ?></strong> no corresponde a ningún certificado válido en nuestro sistema.</p>
+                    <p>Por favor, verifique que el código esté escrito correctamente.</p>
+                </div>
+                <?php
             }
             wp_reset_postdata(); 
         }
         wp_reset_postdata(); 
     } 
+    ?>
     
-    echo '<div style="padding: 20px; border: 1px solid #ccc; border-radius: 5px; font-family: \'Open Sans\', sans-serif;"><h3 style="font-family: \'Open Sans\', sans-serif;">Formulario de Verificación</h3><p>Ingrese el código del certificado para verificar su validez.</p>'; 
-    echo '<form action="' . esc_url(get_permalink()) . '" method="get"><p><label for="id">Número de Certificado:</label><br><input type="text" id="id" name="id" value="" style="width: 100%; padding: 8px;" required></p>'; 
-    echo '<p><input type="submit" value="Verificar Certificado" style="padding: 10px 15px; background-color: #84BC41; color: white; border: none; cursor: pointer; font-weight: bold;"></p></form></div>'; 
+    <div class="zc-form-verificacion">
+        <h3>Verificador de Certificados</h3>
+        <p>Ingresa el código único de tu certificado para verificar su autenticidad</p>
+        
+        <form action="<?php echo esc_url(get_permalink()); ?>" method="get">
+            <input type="text" 
+                   id="id" 
+                   name="id" 
+                   value="" 
+                   placeholder="Ej: ZA2024-001, base-1, etc." 
+                   class="zc-input-codigo"
+                   required>
+            <button type="submit" class="zc-btn-verificar">Verificar Certificado</button>
+        </form>
+    </div>
+    
+    </div>
+    <?php
     
     return ob_get_clean(); 
 }
@@ -370,6 +456,16 @@ function zc_final_generar_pdf($post_id, $post) {
     $oc_cliente = get_post_meta($post_id, '_certificado_oc_cliente', true);
     $listado_participantes_raw = get_post_meta($post_id, '_certificado_listado_participantes', true);
     $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
+    
+    // 🔧 OBTENER URLs DE FIRMAS PERSONALIZADAS (con fallback a firma por defecto)
+    $firma_director_url = get_post_meta($post_id, '_certificado_firma_director_url', true);
+    $firma_instructor_url = get_post_meta($post_id, '_certificado_firma_instructor_url', true);
+    
+    // URLs por defecto si no se especifican personalizadas
+    $firma_default_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-muestra-scaled.png';
+    
+    if (empty($firma_director_url)) $firma_director_url = $firma_default_url;
+    if (empty($firma_instructor_url)) $firma_instructor_url = $firma_default_url;
 
     // --- INICIALIZAR CON LA CLASE PDF PERSONALIZADA ---
     $pdf = new ZC_PDF_Certificado('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -385,7 +481,7 @@ function zc_final_generar_pdf($post_id, $post) {
     // --- TEXTO DINÁMICO INICIAL ---
     $pdf->SetFont($font, '', 11);
     $pdf->SetTextColor(0, 0, 0);
-    $texto_dinamico = "Se certifica que la empresa <b>$empresa</b> participó en la Capacitación de <b>$curso</b>, cumpliendo con los requisitos de asistencia y aprobación establecidos.";
+    $texto_dinamico = "Se certifica que <b>$empresa</b> participó en la Capacitación de <b>$curso</b>, cumpliendo con los requisitos de asistencia y aprobación establecidos.";
     $pdf->writeHTMLCell(0, 0, '', '', $texto_dinamico, 0, 1, 0, true, 'L', true);
     $pdf->Ln(10);
 
@@ -394,7 +490,7 @@ function zc_final_generar_pdf($post_id, $post) {
     $tbl_datos = <<<EOD
     <table border="1" cellpadding="6" cellspacing="0" style="border-color:#000;">
         <tr>
-            <td width="30%" style="background-color:#e0e0e0;"><b>Empresa o Razón Social</b></td>
+            <td width="30%" style="background-color:#e0e0e0;"><b>Nombre del Participante</b></td>
             <td width="70%">$empresa</td>
         </tr>
         <tr>
@@ -486,38 +582,81 @@ EOD;
     // El flag 'true' en writeHTML es clave para que repita los headers
     $pdf->writeHTML($tbl_participantes, true, false, true, false, '');
 
-    // --- SECCIÓN DE FIRMAS (POSICIONAMIENTO INTELIGENTE) ---
+    // --- SECCIÓN DE FIRMAS CON IMAGEN PNG Y ALINEACIÓN VERTICAL MEJORADA ---
     // Se asegura de que las firmas no queden cortadas al final de una página
-    if ($pdf->GetY() > ($pdf->getPageHeight() - 60)) {
+    if ($pdf->GetY() > ($pdf->getPageHeight() - 80)) {
         $pdf->AddPage();
     }
-    $pdf->Ln(15);
+    $pdf->Ln(20);
 
     $yFirmas = $pdf->GetY();
-    $pdf->SetFont($font, 'B', 11);
-    $pdf->SetTextColor(50, 50, 50);
     $firmaDirectorX = 30;
     $firmaInstructorX = 210 - 30 - 80;
-
-    $pdf->Cell(80, 10, $director, 0, 0, 'C', false, '', 0, false, 'T', 'M');
-    $pdf->SetX($firmaInstructorX);
-    $pdf->Cell(80, 10, $instructor, 0, 1, 'C', false, '', 0, false, 'T', 'M');
-
-    $yLinea = $pdf->GetY() - 2;
-    $pdf->Line($firmaDirectorX, $yLinea, $firmaDirectorX + 80, $yLinea);
-    $pdf->Line($firmaInstructorX, $yLinea, $firmaInstructorX + 80, $yLinea);
+    $firmaWidth = 80;
+    $firmaHeight = 25;
     
+    // 🎯 USAR FIRMAS PERSONALIZADAS O POR DEFECTO
+    // Las URLs ya están definidas arriba con fallback automático
+    
+    // FIRMA DEL DIRECTOR (lado izquierdo)
+    $pdf->SetFont($font, 'B', 11);
+    $pdf->SetTextColor(50, 50, 50);
+    
+    // Imagen de firma del director (personalizada o por defecto) - Ancho fijo, alto proporcional
+    $pdf->Image($firma_director_url, $firmaDirectorX + 10, $yFirmas, 60, 0, '', '', '', false, 300, '', false, false, 0);
+    
+    // Posicionar línea debajo de la firma
+    $yLinea = $yFirmas + 22;
+    $pdf->Line($firmaDirectorX, $yLinea, $firmaDirectorX + $firmaWidth, $yLinea);
+    
+    // Texto "Firma Director" centrado debajo de la línea
+    $pdf->SetXY($firmaDirectorX, $yLinea + 2);
     $pdf->SetFont($font, 'B', 10);
     $pdf->SetTextColor(80, 80, 80);
-    $pdf->SetX($firmaDirectorX);
-    $pdf->Cell(80, 10, 'Firma Director', 0, 0, 'C');
-    $pdf->SetX($firmaInstructorX);
-    $pdf->Cell(80, 10, 'Firma Instructor', 0, 1, 'C');
-
-    // --- PIE DE PÁGINA CON TEXTO Y QR (POSICIÓN CORREGIDA Y ALINEADA) ---
-    $yPositionFooter = 220; // Posición Y fija para el inicio de este bloque
-    $pdf->SetY($yPositionFooter); 
+    $pdf->Cell($firmaWidth, 6, 'Firma Director', 0, 0, 'C');
     
+    // Nombre del director centrado debajo
+    $pdf->SetXY($firmaDirectorX, $yLinea + 8);
+    $pdf->SetFont($font, '', 9);
+    $pdf->SetTextColor(100, 100, 100);
+    $pdf->Cell($firmaWidth, 6, $director, 0, 0, 'C');
+
+    // FIRMA DEL INSTRUCTOR (lado derecho)
+    // Imagen de firma del instructor (personalizada o por defecto) - Ancho fijo, alto proporcional
+    $pdf->Image($firma_instructor_url, $firmaInstructorX + 10, $yFirmas, 60, 0, '', '', '', false, 300, '', false, false, 0);
+    
+    // Línea debajo de la firma del instructor
+    $pdf->Line($firmaInstructorX, $yLinea, $firmaInstructorX + $firmaWidth, $yLinea);
+    
+    // Texto "Firma Instructor" centrado debajo de la línea
+    $pdf->SetXY($firmaInstructorX, $yLinea + 2);
+    $pdf->SetFont($font, 'B', 10);
+    $pdf->SetTextColor(80, 80, 80);
+    $pdf->Cell($firmaWidth, 6, 'Firma Instructor', 0, 0, 'C');
+    
+    // Nombre del instructor centrado debajo
+    $pdf->SetXY($firmaInstructorX, $yLinea + 8);
+    $pdf->SetFont($font, '', 9);
+    $pdf->SetTextColor(100, 100, 100);
+    $pdf->Cell($firmaWidth, 6, $instructor, 0, 1, 'C');
+
+    // --- PIE DE PÁGINA CON TEXTO Y QR (POSICIÓN ÓPTIMA CALCULADA) ---
+    // 🔧 SOLUCIÓN AL PROBLEMA DEL QR: Calcular posición dinámica en lugar de fija
+    $pdf->Ln(10); // Espacio después de las firmas
+    $yCurrentPosition = $pdf->GetY();
+    
+    // Verificar si hay espacio suficiente para el footer (necesitamos ~30mm)
+    $espacioNecesario = 30;
+    $limitePagina = $pdf->getPageHeight() - $pdf->getBreakMargin();
+    
+    if (($yCurrentPosition + $espacioNecesario) > $limitePagina) {
+        // No hay espacio suficiente, hacer salto de página
+        $pdf->AddPage();
+        $yCurrentPosition = $pdf->GetY() + 20; // Margen superior en nueva página
+    }
+    
+    // Posicionar footer
+    $pdf->SetY($yCurrentPosition);
     $yPositionForQr = $pdf->GetY();
     
     $pdf->SetFont($font, 'B', 9);
@@ -532,6 +671,7 @@ EOD;
     $pdf->SetTextColor(40, 80, 150);
     $pdf->Cell(0, 5, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
     
+    // QR Code en posición fija relativa al texto
     $qrSize = 35;
     $qrX = 150;
     $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $yPositionForQr, $qrSize, $qrSize);
@@ -566,6 +706,17 @@ function zc_final_generar_diploma($post_id, $post) {
     $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: 'Nombre Instructor';
     $empresa = get_post_meta($post_id, '_certificado_empresa', true); // Obtener el dato de la empresa
     $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
+    
+    // 🔧 OBTENER URLs DE FIRMAS PERSONALIZADAS PARA DIPLOMA (con fallback)
+    $firma_director_url = get_post_meta($post_id, '_certificado_firma_director_url', true);
+    $firma_instructor_url = get_post_meta($post_id, '_certificado_firma_instructor_url', true);
+    
+    // URLs por defecto específicas para director e instructor
+    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director.png';
+    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-instructor.png';
+    
+    if (empty($firma_director_url)) $firma_director_url = $firma_director_default;
+    if (empty($firma_instructor_url)) $firma_instructor_url = $firma_instructor_default;
 
     // --- DISEÑO DEL DIPLOMA (HORIZONTAL) ---
     $pdf = new TCPDF('L', 'mm', 'A4', true, 'UTF-8', false); // 'L' para Landscape (Horizontal)
@@ -616,8 +767,9 @@ function zc_final_generar_diploma($post_id, $post) {
     $pdf->SetTextColor(50, 50, 50);
     $pdf->Cell(0, 15, $participante, 0, 1, 'C');
 
-    // Empresa (si existe)
-    if (!empty($empresa)) {
+    // 🎯 Empresa (solo mostrar si viene de un certificado grupal)
+    $origen_grupal = get_post_meta($post_id, '_certificado_origen_grupal', true);
+    if (!empty($empresa) && !empty($origen_grupal)) {
         $pdf->SetFont($font, '', 11);
         $pdf->SetTextColor(80, 80, 80);
         // Se usa HTML para poder centrar el texto mixto (normal y negrita)
@@ -637,35 +789,47 @@ function zc_final_generar_diploma($post_id, $post) {
     $pdf->MultiCell(0, 12, $curso, 0, 'C');
     $pdf->Ln(15);
 
-    // --- SECCIÓN DE FIRMAS (CENTRADO HORIZONTAL) ---
-    $yFirmas = 150;
+    // --- SECCIÓN DE FIRMAS CON IMAGEN PNG (CENTRADO HORIZONTAL) ---
+    $yFirmas = 140; // 🔝 Subido 10mm para mejor posicionamiento
     $pdf->SetY($yFirmas);
-
-    $pdf->SetFont($font, 'B', 12);
-    $pdf->SetTextColor(50, 50, 50);
 
     // Posiciones X para las firmas
     $firmaDirectorX = 60;
     $firmaInstructorX = 297 - 60 - 80; // Margen derecho
-
-    // Nombres
-    $pdf->SetXY($firmaDirectorX, $yFirmas);
-    $pdf->Cell(80, 10, $director, 0, 0, 'C');
-    $pdf->SetXY($firmaInstructorX, $yFirmas);
-    $pdf->Cell(80, 10, $instructor, 0, 1, 'C');
-
-    // Líneas
-    $yLinea = $yFirmas + 8;
-    $pdf->Line($firmaDirectorX, $yLinea, $firmaDirectorX + 80, $yLinea);
-    $pdf->Line($firmaInstructorX, $yLinea, $firmaInstructorX + 80, $yLinea);
+    $firmaWidth = 80;
+    $firmaHeight = 20;
     
-    // Títulos
+    // 🎯 USAR FIRMAS PERSONALIZADAS O POR DEFECTO PARA DIPLOMA
+    // Las URLs ya están definidas arriba con fallback automático
+
+    // FIRMA DEL DIRECTOR (lado izquierdo)
+    // Imagen de firma del director (personalizada o por defecto) - Ancho fijo, alto proporcional
+    $pdf->Image($firma_director_url, $firmaDirectorX + 10, $yFirmas - 3, 60, 0, '', '', '', false, 300, '', false, false, 0);
+    
+    // FIRMA DEL INSTRUCTOR (lado derecho)
+    // Imagen de firma del instructor (personalizada o por defecto) - Ancho fijo, alto proporcional
+    $pdf->Image($firma_instructor_url, $firmaInstructorX + 10, $yFirmas - 3, 60, 0, '', '', '', false, 300, '', false, false, 0);
+
+    // Líneas debajo de las firmas
+    $yLinea = $yFirmas + 18;
+    $pdf->Line($firmaDirectorX, $yLinea, $firmaDirectorX + $firmaWidth, $yLinea);
+    $pdf->Line($firmaInstructorX, $yLinea, $firmaInstructorX + $firmaWidth, $yLinea);
+    
+    // Títulos debajo de las líneas
     $pdf->SetFont($font, 'B', 10);
     $pdf->SetTextColor(80, 80, 80);
-    $pdf->SetXY($firmaDirectorX, $yLinea);
-    $pdf->Cell(80, 10, 'Firma Director', 0, 0, 'C');
-    $pdf->SetXY($firmaInstructorX, $yLinea);
-    $pdf->Cell(80, 10, 'Firma Instructor', 0, 1, 'C');
+    $pdf->SetXY($firmaDirectorX, $yLinea + 2);
+    $pdf->Cell($firmaWidth, 6, 'Firma Director', 0, 0, 'C');
+    $pdf->SetXY($firmaInstructorX, $yLinea + 2);
+    $pdf->Cell($firmaWidth, 6, 'Firma Instructor', 0, 0, 'C');
+    
+    // Nombres debajo de los títulos
+    $pdf->SetFont($font, '', 9);
+    $pdf->SetTextColor(100, 100, 100);
+    $pdf->SetXY($firmaDirectorX, $yLinea + 8);
+    $pdf->Cell($firmaWidth, 6, $director, 0, 0, 'C');
+    $pdf->SetXY($firmaInstructorX, $yLinea + 8);
+    $pdf->Cell($firmaWidth, 6, $instructor, 0, 1, 'C');
 
     // --- QR Y DATOS DE VERIFICACIÓN (ESQUINA INFERIOR DERECHA) ---
     $yFooter = 180;
@@ -700,12 +864,589 @@ function zc_final_generar_diploma($post_id, $post) {
 }
 
 // =============================================================================
-// PARTE 7: ENCOLAR HOJA DE ESTILOS DE GOOGLE FONTS
+// PARTE 7: ESTILOS MODERNOS Y INTERFAZ VISUAL MEJORADA
 // =============================================================================
 function zc_final_enqueue_styles() {
-    wp_enqueue_style('zc-final-google-fonts', 'https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;700&display=swap', array(), null);
+    // Google Fonts
+    wp_enqueue_style('zc-final-google-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap', array(), null);
+    
+    // Font Awesome para iconos
+    wp_enqueue_style('zc-final-font-awesome', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css', array(), '6.4.0');
+    
+    // Estilos personalizados del plugin
+    wp_add_inline_style('zc-final-google-fonts', zc_get_custom_css());
 }
 add_action('wp_enqueue_scripts', 'zc_final_enqueue_styles');
+
+// Estilos para el admin
+function zc_final_admin_enqueue_styles($hook) {
+    // Solo cargar en páginas del plugin
+    if (strpos($hook, 'certificado') !== false || strpos($hook, 'edit.php') !== false || strpos($hook, 'post.php') !== false || strpos($hook, 'post-new.php') !== false) {
+        wp_enqueue_style('zc-final-google-fonts', 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap', array(), null);
+        wp_enqueue_style('zc-final-font-awesome', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css', array(), '6.4.0');
+        wp_add_inline_style('zc-final-google-fonts', zc_get_admin_css());
+    }
+}
+add_action('admin_enqueue_scripts', 'zc_final_admin_enqueue_styles');
+
+function zc_get_custom_css() {
+    return '
+    /* =================================================================
+       🎨 ESTILOS FRONTEND - VALIDADOR MODERNO
+       ================================================================= */
+    
+    /* Contenedor principal del validador */
+    .zc-validador-container {
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: "Inter", sans-serif;
+    }
+    
+    /* Formulario de verificación moderno */
+    .zc-form-verificacion {
+        background: linear-gradient(145deg, #ffffff, #f8fafc);
+        border-radius: 20px;
+        padding: 40px;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        border: 1px solid #e2e8f0;
+        margin-bottom: 30px;
+        transition: all 0.3s ease;
+    }
+    
+    .zc-form-verificacion:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+    }
+    
+    .zc-form-verificacion h3 {
+        color: #1e293b;
+        font-family: "Poppins", sans-serif;
+        font-weight: 700;
+        font-size: 28px;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+    
+    .zc-form-verificacion p {
+        color: #64748b;
+        font-size: 16px;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    
+    /* Input de código */
+    .zc-input-codigo {
+        width: 100% !important;
+        padding: 18px 25px !important;
+        border: 2px solid #e2e8f0 !important;
+        border-radius: 15px !important;
+        font-size: 18px !important;
+        font-family: "Inter", sans-serif !important;
+        background: #ffffff !important;
+        transition: all 0.3s ease !important;
+        margin-bottom: 25px !important;
+    }
+    
+    .zc-input-codigo:focus {
+        outline: none !important;
+        border-color: #84BC41 !important;
+        box-shadow: 0 0 0 4px rgba(132, 188, 65, 0.1) !important;
+        transform: translateY(-1px) !important;
+    }
+    
+    /* Botón de verificación moderno */
+    .zc-btn-verificar {
+        background: linear-gradient(135deg, #84BC41, #6ba32f) !important;
+        color: white !important;
+        padding: 18px 40px !important;
+        border: none !important;
+        border-radius: 15px !important;
+        font-size: 18px !important;
+        font-weight: 600 !important;
+        font-family: "Poppins", sans-serif !important;
+        cursor: pointer !important;
+        transition: all 0.3s ease !important;
+        width: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 10px !important;
+    }
+    
+    .zc-btn-verificar:hover {
+        background: linear-gradient(135deg, #6ba32f, #5a8c26) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 10px 25px rgba(132, 188, 65, 0.3) !important;
+    }
+    
+    .zc-btn-verificar:before {
+        content: "\\f00c";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+    }
+    
+    /* Resultados de verificación */
+    .zc-resultado-valido {
+        background: linear-gradient(145deg, #ffffff, #f0fdf4);
+        border: 2px solid #84BC41 !important;
+        border-radius: 20px !important;
+        padding: 40px !important;
+        margin-bottom: 30px !important;
+        box-shadow: 0 20px 40px rgba(132, 188, 65, 0.1) !important;
+        font-family: "Inter", sans-serif !important;
+    }
+    
+    .zc-resultado-valido h2 {
+        color: #84BC41 !important;
+        font-family: "Poppins", sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 32px !important;
+        margin-bottom: 25px !important;
+        text-align: center !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 15px !important;
+    }
+    
+    .zc-resultado-valido h2:before {
+        content: "\\f058";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 36px;
+    }
+    
+    /* Información del certificado */
+    .zc-info-certificado p {
+        background: rgba(132, 188, 65, 0.05);
+        padding: 15px 20px;
+        border-radius: 12px;
+        margin-bottom: 12px;
+        border-left: 4px solid #84BC41;
+        font-size: 16px;
+    }
+    
+    .zc-info-certificado strong {
+        color: #1e293b;
+        font-weight: 600;
+    }
+    
+    /* Botones de descarga modernos */
+    .zc-botones-descarga {
+        display: flex;
+        gap: 15px;
+        flex-wrap: wrap;
+        justify-content: center;
+        margin: 30px 0;
+    }
+    
+    .zc-btn-descargar {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 15px 30px !important;
+        border-radius: 12px !important;
+        text-decoration: none !important;
+        font-weight: 600 !important;
+        font-family: "Poppins", sans-serif !important;
+        font-size: 16px !important;
+        transition: all 0.3s ease !important;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1) !important;
+    }
+    
+    .zc-btn-certificado {
+        background: linear-gradient(135deg, #84BC41, #6ba32f) !important;
+        color: white !important;
+    }
+    
+    .zc-btn-certificado:hover {
+        background: linear-gradient(135deg, #6ba32f, #5a8c26) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(132, 188, 65, 0.3) !important;
+        color: white !important;
+    }
+    
+    .zc-btn-certificado:before {
+        content: "\\f1c1";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+    }
+    
+    .zc-btn-diploma {
+        background: linear-gradient(135deg, #337ab7, #2563eb) !important;
+        color: white !important;
+    }
+    
+    .zc-btn-diploma:hover {
+        background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3) !important;
+        color: white !important;
+    }
+    
+    .zc-btn-diploma:before {
+        content: "\\f19c";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+    }
+    
+    .zc-btn-grupal {
+        background: linear-gradient(135deg, #2e7d32, #1976d2) !important;
+        color: white !important;
+    }
+    
+    .zc-btn-grupal:hover {
+        background: linear-gradient(135deg, #1976d2, #1565c0) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 25px rgba(25, 118, 210, 0.3) !important;
+        color: white !important;
+    }
+    
+    .zc-btn-grupal:before {
+        content: "\\f0c0";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+    }
+    
+    /* Certificado grupal */
+    .zc-resultado-grupal {
+        background: linear-gradient(145deg, #ffffff, #e8f5e8);
+        border: 2px solid #2e7d32 !important;
+        border-radius: 20px !important;
+        padding: 40px !important;
+        margin-bottom: 30px !important;
+        box-shadow: 0 20px 40px rgba(46, 125, 50, 0.1) !important;
+        font-family: "Inter", sans-serif !important;
+    }
+    
+    .zc-resultado-grupal h2 {
+        color: #2e7d32 !important;
+        font-family: "Poppins", sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 32px !important;
+        margin-bottom: 25px !important;
+        text-align: center !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 15px !important;
+    }
+    
+    .zc-resultado-grupal h2:before {
+        content: "\\f0c0";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 36px;
+    }
+    
+    /* Error/No encontrado */
+    .zc-resultado-error {
+        background: linear-gradient(145deg, #ffffff, #fef2f2);
+        border: 2px solid #F44336 !important;
+        border-radius: 20px !important;
+        padding: 40px !important;
+        margin-bottom: 30px !important;
+        box-shadow: 0 20px 40px rgba(244, 67, 54, 0.1) !important;
+        font-family: "Inter", sans-serif !important;
+        text-align: center !important;
+    }
+    
+    .zc-resultado-error h2 {
+        color: #F44336 !important;
+        font-family: "Poppins", sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 32px !important;
+        margin-bottom: 15px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 15px !important;
+    }
+    
+    .zc-resultado-error h2:before {
+        content: "\\f057";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        font-size: 36px;
+    }
+    
+    /* Visor de PDF mejorado */
+    .zc-pdf-viewer {
+        margin-top: 30px;
+        border-radius: 15px;
+        overflow: hidden;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+    
+    .zc-pdf-viewer h4 {
+        background: linear-gradient(135deg, #1e293b, #334155);
+        color: white;
+        padding: 20px;
+        margin: 0;
+        font-family: "Poppins", sans-serif;
+        font-weight: 600;
+        font-size: 18px;
+        text-align: center;
+    }
+    
+    .zc-pdf-viewer iframe {
+        border: none !important;
+        border-radius: 0 0 15px 15px !important;
+        width: 100% !important;
+        min-height: 600px !important;
+    }
+    
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .zc-validador-container {
+            padding: 10px;
+        }
+        
+        .zc-form-verificacion {
+            padding: 25px;
+            border-radius: 15px;
+        }
+        
+        .zc-form-verificacion h3 {
+            font-size: 24px;
+        }
+        
+        .zc-botones-descarga {
+            flex-direction: column;
+        }
+        
+        .zc-btn-descargar {
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .zc-resultado-valido,
+        .zc-resultado-grupal,
+        .zc-resultado-error {
+            padding: 25px;
+        }
+        
+        .zc-resultado-valido h2,
+        .zc-resultado-grupal h2,
+        .zc-resultado-error h2 {
+            font-size: 24px;
+            flex-direction: column;
+            gap: 10px;
+        }
+    }
+    ';
+}
+
+function zc_get_admin_css() {
+    return '
+    /* =================================================================
+       🎨 ESTILOS ADMIN - INTERFAZ MODERNA WORDPRESS
+       ================================================================= */
+    
+    /* Meta boxes modernos */
+    #datos_certificado_metabox,
+    #datos_certificado_grupal_metabox {
+        border-radius: 12px !important;
+        border: 1px solid #e1e5e9 !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+    }
+    
+    .postbox-header h2 {
+        font-family: "Poppins", sans-serif !important;
+        font-weight: 600 !important;
+        color: #1e293b !important;
+    }
+    
+    /* Campos de formulario mejorados */
+    .zc-admin-section {
+        background: #f8fafc;
+        padding: 25px;
+        border-radius: 12px;
+        margin-bottom: 25px;
+        border-left: 4px solid #84BC41;
+    }
+    
+    .zc-admin-section h3 {
+        color: #1e293b !important;
+        font-family: "Poppins", sans-serif !important;
+        font-weight: 600 !important;
+        margin-top: 0 !important;
+        margin-bottom: 20px !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
+    
+    .zc-admin-section h3:before {
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        color: #84BC41;
+        font-size: 18px;
+    }
+    
+    .zc-admin-section h3.datos-generales:before { content: "\\f1c0"; }
+    .zc-admin-section h3.datos-curso:before { content: "\\f19d"; }
+    .zc-admin-section h3.participantes:before { content: "\\f0c0"; }
+    .zc-admin-section h3.firmas:before { content: "\\f304"; }
+    
+    /* Inputs modernos */
+    .zc-admin-section input[type="text"],
+    .zc-admin-section input[type="date"],
+    .zc-admin-section textarea {
+        border: 2px solid #e2e8f0 !important;
+        border-radius: 8px !important;
+        padding: 12px 16px !important;
+        font-size: 14px !important;
+        font-family: "Inter", sans-serif !important;
+        transition: all 0.3s ease !important;
+        background: white !important;
+    }
+    
+    .zc-admin-section input[type="text"]:focus,
+    .zc-admin-section input[type="date"]:focus,
+    .zc-admin-section textarea:focus {
+        outline: none !important;
+        border-color: #84BC41 !important;
+        box-shadow: 0 0 0 3px rgba(132, 188, 65, 0.1) !important;
+    }
+    
+    /* Labels mejorados */
+    .zc-admin-section label {
+        font-weight: 500 !important;
+        color: #374151 !important;
+        font-family: "Inter", sans-serif !important;
+        font-size: 14px !important;
+        display: block !important;
+        margin-bottom: 6px !important;
+    }
+    
+    /* Alertas informativas */
+    .zc-info-box {
+        background: linear-gradient(135deg, #e8f5e8, #f0f9f0) !important;
+        border: 1px solid #84BC41 !important;
+        border-radius: 12px !important;
+        padding: 20px !important;
+        margin-bottom: 20px !important;
+        position: relative !important;
+    }
+    
+    .zc-info-box h3 {
+        color: #2e7d32 !important;
+        margin-top: 0 !important;
+        margin-bottom: 10px !important;
+        font-family: "Poppins", sans-serif !important;
+        font-weight: 600 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
+    
+    .zc-info-box h3:before {
+        content: "\\f05a";
+        font-family: "Font Awesome 6 Free";
+        font-weight: 900;
+        color: #84BC41;
+    }
+    
+    .zc-warning-box {
+        background: linear-gradient(135deg, #fff3cd, #fef3cd) !important;
+        border: 1px solid #ffc107 !important;
+        border-radius: 12px !important;
+        padding: 15px !important;
+        margin-bottom: 15px !important;
+        border-left: 4px solid #ffc107 !important;
+    }
+    
+    .zc-warning-box strong {
+        color: #856404 !important;
+    }
+    
+    /* URLs de documentos */
+    .zc-url-section {
+        background: #f0f6fc !important;
+        padding: 20px !important;
+        border-radius: 12px !important;
+        border: 1px solid #c1d7f0 !important;
+    }
+    
+    .zc-url-section input[type="url"] {
+        background-color: #e9ecef !important;
+        color: #6c757d !important;
+        font-family: monospace !important;
+    }
+    
+    /* Columnas de administrador mejoradas */
+    .wp-list-table .column-participantes span {
+        background: linear-gradient(135deg, #e3f2fd, #f3e5f5) !important;
+        color: #1976d2 !important;
+        padding: 4px 12px !important;
+        border-radius: 20px !important;
+        font-weight: 600 !important;
+        font-size: 12px !important;
+    }
+    
+    .wp-list-table .column-procesado span[style*="green"] {
+        background: linear-gradient(135deg, #e8f5e8, #f1f8e9) !important;
+        color: #2e7d32 !important;
+        padding: 4px 12px !important;
+        border-radius: 20px !important;
+        font-weight: 600 !important;
+        font-size: 12px !important;
+    }
+    
+    .wp-list-table .column-procesado span[style*="orange"] {
+        background: linear-gradient(135deg, #fff3e0, #fef7e0) !important;
+        color: #f57500 !important;
+        padding: 4px 12px !important;
+        border-radius: 20px !important;
+        font-weight: 600 !important;
+        font-size: 12px !important;
+    }
+    
+    /* Iconos en menús */
+    .wp-menu-image.dashicons-awards:before,
+    .wp-menu-image.dashicons-groups:before {
+        font-size: 20px !important;
+        width: 20px !important;
+        height: 20px !important;
+    }
+    
+    /* Botones de submit mejorados */
+    #submit {
+        background: linear-gradient(135deg, #84BC41, #6ba32f) !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 12px 24px !important;
+        font-weight: 600 !important;
+        font-family: "Poppins", sans-serif !important;
+        text-shadow: none !important;
+        box-shadow: 0 4px 12px rgba(132, 188, 65, 0.3) !important;
+        transition: all 0.3s ease !important;
+    }
+    
+    #submit:hover {
+        background: linear-gradient(135deg, #6ba32f, #5a8c26) !important;
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 16px rgba(132, 188, 65, 0.4) !important;
+    }
+    
+    /* Responsive Admin */
+    @media (max-width: 768px) {
+        .zc-admin-section {
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .zc-admin-section h3 {
+            font-size: 16px;
+            flex-direction: column;
+            gap: 5px;
+            text-align: center;
+        }
+    }
+    ';
+}
 
 /*
 ================================================================
@@ -776,37 +1517,58 @@ function zc_grupal_mostrar_campos_html($post) {
     
     wp_nonce_field('zc_grupal_guardar_datos', 'zc_grupal_nonce');
 
-    echo '<div style="background-color: #e8f5e8; padding: 15px; border-radius: 5px; margin-bottom: 20px;">';
-    echo '<h3 style="color: #2e7d32; margin-top: 0;">🎯 Certificado Grupal - Auto-generación Individual</h3>';
+    echo '<div class="zc-info-box">';
+    echo '<h3>Certificado Grupal - Auto-generación Individual</h3>';
     echo '<p><strong>Funcionalidad:</strong> Al publicar este certificado grupal, se crearán automáticamente certificados individuales para cada participante de la lista, con códigos únicos basados en el código principal.</p>';
     echo '<p><strong>Ejemplo:</strong> Si el código es "CURSO2025", se generarán: CURSO2025-1, CURSO2025-2, CURSO2025-3, etc.</p>';
     echo '</div>';
 
-    echo '<h3>Datos Generales</h3>';
+    echo '<div class="zc-admin-section">';
+    echo '<h3 class="datos-generales">Datos Generales</h3>';
     echo '<p><label><strong>Código de Verificación (Base):</strong><br><input type="text" name="certificado_grupal_codigo" value="' . esc_attr($codigo) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Nombre de la Empresa:</strong><br><input type="text" name="certificado_grupal_empresa" value="' . esc_attr($empresa) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Nombre del Curso:</strong><br><input type="text" name="certificado_grupal_curso" value="' . esc_attr($curso) . '" style="width:100%;"></label></p>';
+    echo '</div>';
     
-    echo '<h3>Datos del Curso</h3>';
+    echo '<div class="zc-admin-section">';
+    echo '<h3 class="datos-curso">Datos del Curso</h3>';
     echo '<p><label><strong>Duración (ej: 03 horas cronológicas):</strong><br><input type="text" name="certificado_grupal_duracion" value="' . esc_attr($duracion) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Fecha de Emisión:</strong><br><input type="date" name="certificado_grupal_fecha" value="' . esc_attr($fecha) . '"></label></p>';
     echo '<p><label><strong>Fecha de Realización:</strong><br><input type="date" name="certificado_grupal_fecha_realizacion" value="' . esc_attr($fecha_realizacion) . '"></label></p>';
     echo '<p><label><strong>Fecha de Expiración:</strong><br><input type="date" name="certificado_grupal_fecha_expiracion" value="' . esc_attr($fecha_expiracion) . '"></label></p>';
     echo '<p><label><strong>O.C. Cliente:</strong><br><input type="text" name="certificado_grupal_oc_cliente" value="' . esc_attr($oc_cliente) . '" style="width:100%;"></label></p>';
+    echo '</div>';
 
-    echo '<h3>Listado de Participantes (Grupal)</h3>';
+    echo '<div class="zc-admin-section">';
+    echo '<h3 class="participantes">Listado de Participantes</h3>';
     echo '<p><label for="listado_participantes_grupal"><strong>Participantes:</strong></label><br>';
     echo '<textarea name="certificado_grupal_listado_participantes" id="listado_participantes_grupal" rows="10" style="width:100%; font-family: monospace;">' . esc_textarea($listado_participantes) . '</textarea>';
-    echo '<p class="description"><strong>Instrucciones:</strong> Ingrese un participante por línea. Use comas (,) para separar las columnas en el siguiente orden:<br><code>Nombre Completo,RUT,Asistencia,Nota T.,Nota S.,Nota Final,Aprobación</code><br>Ejemplo: <code>Apolinar Andrés Mendoza Cuno,22.626.949-9,100%,7.0,7.0,7.0,A</code></p>';
-    echo '<div style="background-color: #fff3cd; padding: 10px; border-radius: 4px; border-left: 4px solid #ffc107;"><strong>⚡ Auto-generación:</strong> Al publicar, cada participante será registrado como certificado individual con código único.</div>';
+    echo '<div class="zc-warning-box"><strong>Instrucciones:</strong> Ingrese un participante por línea. Use comas (,) para separar las columnas en el siguiente orden:<br><code>Nombre Completo,RUT,Asistencia,Nota T.,Nota S.,Nota Final,Aprobación</code><br>Ejemplo: <code>Apolinar Andrés Mendoza Cuno,22.626.949-9,100%,7.0,7.0,7.0,A</code></div>';
+    echo '<div class="zc-info-box"><h3>Auto-generación</h3>Al publicar, cada participante será registrado como certificado individual con código único.</div>';
+    echo '</div>';
 
-    echo '<h3>Firmas</h3>';
+    echo '<div class="zc-admin-section">';
+    echo '<h3 class="firmas">Firmas</h3>';
     echo '<p><label><strong>Nombre del Director:</strong><br><input type="text" name="certificado_grupal_director" value="' . esc_attr($director) . '" style="width:100%;"></label></p>';
     echo '<p><label><strong>Nombre del Instructor:</strong><br><input type="text" name="certificado_grupal_instructor" value="' . esc_attr($instructor) . '" style="width:100%;"></label></p>';
     
-    echo '<hr>';
+    // 🖼️ Campos para firmas personalizadas PNG
+    $firma_director_url = get_post_meta($post->ID, '_certificado_grupal_firma_director_url', true);
+    $firma_instructor_url = get_post_meta($post->ID, '_certificado_grupal_firma_instructor_url', true);
+    
+    echo '<hr style="margin: 15px 0;">';
+    echo '<h4>🖼️ Firmas Personalizadas (PNG)</h4>';
+    echo '<p style="color: #666;">Si no se especifican URLs, se usarán las firmas predeterminadas del sistema.</p>';
+    echo '<p><label><strong>URL Firma Director (PNG):</strong><br>';
+    echo '<input type="url" name="certificado_grupal_firma_director_url" value="' . esc_attr($firma_director_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-director.png"></label></p>';
+    echo '<p><label><strong>URL Firma Instructor (PNG):</strong><br>';
+    echo '<input type="url" name="certificado_grupal_firma_instructor_url" value="' . esc_attr($firma_instructor_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-instructor.png"></label></p>';
+    echo '</div>';
+    
+    echo '<div class="zc-url-section">';
     echo '<h3>URL del Certificado Grupal Generado</h3>';
-    echo '<p style="background-color: #f0f6fc; padding: 15px; border-radius: 4px;"><label><strong>URL del Certificado Grupal (Automático):</strong><br><input type="url" value="' . esc_attr($pdf_url) . '" style="width:100%; background-color: #eee;" readonly></label></p>';
+    echo '<p><label><strong>URL del Certificado Grupal (Automático):</strong><br><input type="url" value="' . esc_attr($pdf_url) . '" style="width:100%;" readonly></label></p>';
+    echo '</div>';
 }
 
 // =============================================================================
@@ -830,6 +1592,14 @@ function zc_grupal_guardar_datos($post_id, $post) {
     if (isset($_POST['certificado_grupal_fecha_expiracion'])) update_post_meta($post_id, '_certificado_grupal_fecha_expiracion', sanitize_text_field($_POST['certificado_grupal_fecha_expiracion']));
     if (isset($_POST['certificado_grupal_oc_cliente'])) update_post_meta($post_id, '_certificado_grupal_oc_cliente', sanitize_text_field($_POST['certificado_grupal_oc_cliente']));
     if (isset($_POST['certificado_grupal_listado_participantes'])) update_post_meta($post_id, '_certificado_grupal_listado_participantes', sanitize_textarea_field($_POST['certificado_grupal_listado_participantes']));
+    
+    // 🖼️ Guardar URLs de firmas personalizadas
+    if (isset($_POST['certificado_grupal_firma_director_url'])) {
+        update_post_meta($post_id, '_certificado_grupal_firma_director_url', esc_url_raw($_POST['certificado_grupal_firma_director_url']));
+    }
+    if (isset($_POST['certificado_grupal_firma_instructor_url'])) {
+        update_post_meta($post_id, '_certificado_grupal_firma_instructor_url', esc_url_raw($_POST['certificado_grupal_firma_instructor_url']));
+    }
 
     // 🎯 MAGIA: Auto-generar certificados individuales solo si está publicado
     if ($post->post_status === 'publish') {
@@ -1128,28 +1898,49 @@ EOD;
     
     $pdf->writeHTML($tbl_participantes, true, false, true, false, '');
 
-    // --- SECCIÓN DE FIRMAS (IDÉNTICA) ---
+    // --- SECCIÓN DE FIRMAS CON PNG PERSONALIZABLES ---
     if ($pdf->GetY() > ($pdf->getPageHeight() - 60)) {
         $pdf->AddPage();
     }
     $pdf->Ln(15);
 
     $yFirmas = $pdf->GetY();
-    $pdf->SetFont($font, 'B', 11);
-    $pdf->SetTextColor(50, 50, 50);
     $firmaDirectorX = 30;
     $firmaInstructorX = 210 - 30 - 80;
-
-    $pdf->Cell(80, 10, $director, 0, 0, 'C', false, '', 0, false, 'T', 'M');
-    $pdf->SetX($firmaInstructorX);
-    $pdf->Cell(80, 10, $instructor, 0, 1, 'C', false, '', 0, false, 'T', 'M');
-
-    $yLinea = $pdf->GetY() - 2;
+    
+    // 🖼️ Obtener URLs de firmas personalizadas
+    $firma_director_url = get_post_meta($post_id, '_certificado_grupal_firma_director_url', true);
+    $firma_instructor_url = get_post_meta($post_id, '_certificado_grupal_firma_instructor_url', true);
+    
+    // Firmas predeterminadas
+    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director.png';
+    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-instructor.png';
+    
+    // Usar firma personalizada o predeterminada
+    $firma_director_final = !empty($firma_director_url) ? $firma_director_url : $firma_director_default;
+    $firma_instructor_final = !empty($firma_instructor_url) ? $firma_instructor_url : $firma_instructor_default;
+    
+    // Insertar firmas PNG (60mm ancho, alto automático para mantener proporciones)
+    $firmaWidth = 60;
+    $firmaDirectorCenteredX = $firmaDirectorX + (80 - $firmaWidth) / 2;
+    $firmaInstructorCenteredX = $firmaInstructorX + (80 - $firmaWidth) / 2;
+    
+    $pdf->Image($firma_director_final, $firmaDirectorCenteredX, $yFirmas, $firmaWidth, 0, '', '', '', false, 300, '', false, false, 0);
+    $pdf->Image($firma_instructor_final, $firmaInstructorCenteredX, $yFirmas, $firmaWidth, 0, '', '', '', false, 300, '', false, false, 0);
+    
+    // Ajustar posición Y después de las firmas (estimando altura máxima de 20mm)
+    $yAfterFirmas = $yFirmas + 20;
+    $pdf->SetY($yAfterFirmas);
+    
+    // Líneas bajo las firmas
+    $yLinea = $pdf->GetY();
     $pdf->Line($firmaDirectorX, $yLinea, $firmaDirectorX + 80, $yLinea);
     $pdf->Line($firmaInstructorX, $yLinea, $firmaInstructorX + 80, $yLinea);
     
+    // Textos bajo las líneas
     $pdf->SetFont($font, 'B', 10);
     $pdf->SetTextColor(80, 80, 80);
+    $pdf->SetY($yLinea + 2);
     $pdf->SetX($firmaDirectorX);
     $pdf->Cell(80, 10, 'Firma Director', 0, 0, 'C');
     $pdf->SetX($firmaInstructorX);
@@ -1384,29 +2175,42 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $pdf->MultiCell(0, 12, $curso_individual, 0, 'C');
         $pdf->Ln(15);
         
-        // Firmas
-        $yFirmas = 150;
-        $pdf->SetY($yFirmas);
-        $pdf->SetFont($font, 'B', 12);
-        $pdf->SetTextColor(50, 50, 50);
-        
+        // Firmas con PNG personalizables
+        $yFirmas = 140; // 🔝 Subido 10mm para mejor posicionamiento
         $firmaDirectorX = 60;
         $firmaInstructorX = 297 - 60 - 80;
         
-        $pdf->SetXY($firmaDirectorX, $yFirmas);
-        $pdf->Cell(80, 10, $director, 0, 0, 'C');
-        $pdf->SetXY($firmaInstructorX, $yFirmas);
-        $pdf->Cell(80, 10, $instructor, 0, 1, 'C');
+        // 🖼️ Obtener URLs de firmas personalizadas del certificado grupal
+        $firma_director_url = get_post_meta($post_id_grupal, '_certificado_grupal_firma_director_url', true);
+        $firma_instructor_url = get_post_meta($post_id_grupal, '_certificado_grupal_firma_instructor_url', true);
         
-        $yLinea = $yFirmas + 8;
+        // Firmas predeterminadas  
+        $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director.png';
+        $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-instructor.png';
+        
+        // Usar firma personalizada o predeterminada
+        $firma_director_final = !empty($firma_director_url) ? $firma_director_url : $firma_director_default;
+        $firma_instructor_final = !empty($firma_instructor_url) ? $firma_instructor_url : $firma_instructor_default;
+        
+        // Insertar firmas PNG (60mm ancho, alto automático para mantener proporciones)
+        $firmaWidth = 60;
+        $firmaDirectorCenteredX = $firmaDirectorX + (80 - $firmaWidth) / 2;
+        $firmaInstructorCenteredX = $firmaInstructorX + (80 - $firmaWidth) / 2;
+        
+        $pdf->Image($firma_director_final, $firmaDirectorCenteredX, $yFirmas - 3, $firmaWidth, 0, '', '', '', false, 300, '', false, false, 0);
+        $pdf->Image($firma_instructor_final, $firmaInstructorCenteredX, $yFirmas - 3, $firmaWidth, 0, '', '', '', false, 300, '', false, false, 0);
+        
+        // Líneas bajo las firmas (estimando altura máxima de 15mm para diplomas)
+        $yLinea = $yFirmas + 15;
         $pdf->Line($firmaDirectorX, $yLinea, $firmaDirectorX + 80, $yLinea);
         $pdf->Line($firmaInstructorX, $yLinea, $firmaInstructorX + 80, $yLinea);
         
+        // Textos bajo las líneas
         $pdf->SetFont($font, 'B', 10);
         $pdf->SetTextColor(80, 80, 80);
-        $pdf->SetXY($firmaDirectorX, $yLinea);
+        $pdf->SetXY($firmaDirectorX, $yLinea + 2);
         $pdf->Cell(80, 10, 'Firma Director', 0, 0, 'C');
-        $pdf->SetXY($firmaInstructorX, $yLinea);
+        $pdf->SetXY($firmaInstructorX, $yLinea + 2);
         $pdf->Cell(80, 10, 'Firma Instructor', 0, 1, 'C');
         
         // QR y datos de verificación
@@ -1444,3 +2248,160 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
     
     return '';
 }
+
+/*
+=============================================================================
+📋 DOCUMENTACIÓN TÉCNICA - GESTIÓN DE FIRMAS Y REFERENCIAS
+=============================================================================
+
+🔧 PROBLEMA RESUELTO: QR QUE SE MOVÍA A OTRA PÁGINA
+   ------------------------------------------------
+   ✅ Solución aplicada: Cálculo dinámico de posición en lugar de Y fija
+   ✅ El footer ahora verifica si hay espacio suficiente (30mm)
+   ✅ Si no hay espacio, automáticamente crea nueva página
+   ✅ QR Code se mantiene siempre en la misma página que el texto
+
+🎯 SISTEMA DE FIRMAS PERSONALIZADAS
+   ---------------------------------
+   
+   1. CAMPOS AGREGADOS AL FORMULARIO:
+      • "URL Firma del Director (PNG)"
+      • "URL Firma del Instructor (PNG)"
+      • Validación automática de URLs
+      • Fallback a firma por defecto
+   
+   2. CAMPOS EN BASE DE DATOS:
+      • _certificado_firma_director_url
+      • _certificado_firma_instructor_url
+      • Se guardan con esc_url_raw() para seguridad
+   
+   3. SISTEMA DE FALLBACK:
+      • Si campo vacío → usa firma por defecto
+      • Firma por defecto: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-muestra-scaled.png
+
+📁 URLs Y ARCHIVOS DE REFERENCIA
+   ------------------------------
+   
+   🖼️ FIRMAS:
+   • Firma por defecto: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-muestra-scaled.png
+   • Tamaño recomendado: 400x200 píxeles
+   • Formato: PNG con fondo transparente
+   • Ubicación en PDF: 60x20mm (certificado), 60x15mm (diploma)
+   
+   🎨 FONDOS:
+   • Certificado individual: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-a4-2.png
+   • Diploma horizontal: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/diploma-zenactivo.png
+   
+   🔗 VERIFICACIÓN:
+   • URL base: home_url('/pagina-de-verificacion-test/')
+   • Parámetro: ?id=[codigo_certificado]
+
+⚙️ PARA CAMBIAR FIRMAS GLOBALMENTE (SIN FORMULARIO)
+   ------------------------------------------------
+   
+   1. UBICAR EN EL CÓDIGO:
+      Buscar: $firma_default_url = 'https://validador.zenactivospa.cl/...'
+      Líneas aproximadas: 460 (certificado) y 710 (diploma)
+   
+   2. REEMPLAZAR URL:
+      $firma_default_url = 'https://tu-sitio.com/tu-nueva-firma.png';
+   
+   3. APLICAR EN AMBAS FUNCIONES:
+      • zc_final_generar_pdf() - Para certificados
+      • zc_final_generar_diploma() - Para diplomas
+
+🎛️ PARA USAR FIRMAS DIFERENTES POR CARGO
+   ---------------------------------------
+   
+   Ejemplo de modificación avanzada:
+   
+   // En lugar de una sola firma por defecto, usar diferentes:
+   $firma_director_url = $firma_director_url ?: 'https://sitio.com/firma-director.png';
+   $firma_instructor_url = $firma_instructor_url ?: 'https://sitio.com/firma-instructor.png';
+
+📊 CAMPOS DEL FORMULARIO DISPONIBLES
+   ----------------------------------
+   
+   CERTIFICADO INDIVIDUAL:
+   • certificado_codigo (Código único)
+   • certificado_empresa (Nombre del participante)
+   • certificado_curso (Nombre del curso)
+   • certificado_director (Nombre del director)
+   • certificado_instructor (Nombre del instructor)
+   • certificado_firma_director_url (🆕 URL firma director)
+   • certificado_firma_instructor_url (🆕 URL firma instructor)
+   • [+ otros campos de fechas, duración, etc.]
+
+   CERTIFICADO GRUPAL:
+   • certificado_grupal_codigo (Código base para el grupo)
+   • certificado_grupal_empresa (Empresa participante)
+   • certificado_grupal_curso (Nombre del curso)
+   • certificado_grupal_director (Nombre del director)
+   • certificado_grupal_instructor (Nombre del instructor)
+   • certificado_grupal_firma_director_url (🆕 URL firma director)
+   • certificado_grupal_firma_instructor_url (🆕 URL firma instructor)
+   • certificado_grupal_listado_participantes (Lista CSV de participantes)
+   • [+ otros campos específicos del grupo]
+
+🔄 PROCESO DE GENERACIÓN
+   ----------------------
+   
+   CERTIFICADOS INDIVIDUALES:
+   1. Usuario crea/edita certificado individual
+   2. Al guardar/publicar:
+      • Se obtienen URLs de firmas personalizadas
+      • Si están vacías, usa firmas predeterminadas
+      • Se genera PDF con firmas PNG insertadas (60mm ancho, alto proporcional)
+      • QR posicionado dinámicamente para evitar saltos de página
+   
+   CERTIFICADOS GRUPALES:
+   1. Usuario crea certificado grupal con lista de participantes
+   2. Al publicar:
+      • Se generan certificados individuales automáticamente para cada participante
+      • Se obtienen URLs de firmas personalizadas del grupo
+      • Se aplican las mismas firmas PNG a todos los certificados del grupo
+      • Se genera PDF compilado con diplomas individuales
+      • Tanto certificado grupal como diplomas compilados usan las firmas personalizadas
+
+📐 ADAPTACIÓN AUTOMÁTICA DE TAMAÑOS DE IMAGEN
+   ------------------------------------------
+   
+   ✅ PROPORCIONES AUTOMÁTICAS:
+   • Ancho fijo: 60mm (para mantener uniformidad visual)
+   • Alto automático: TCPDF calcula según proporciones originales
+   • Sin deformación: Las imágenes mantienen su aspecto original
+   
+   🎯 RECOMENDACIONES DE IMAGEN:
+   • Formato: PNG (preferido) o JPG
+   • Proporción ideal: 3:1 (ancho:alto) para mejor ajuste
+   • Resolución mínima: 300x100 píxeles
+   • Máximo recomendado: 900x300 píxeles
+   • Fondo transparente: PNG para mejor integración
+   
+   ⚠️ IMÁGENES PROBLEMÁTICAS:
+   • Muy altas (cuadradas): Ocuparán mucho espacio vertical
+   • Muy anchas: Se verán muy delgadas al escalar a 60mm
+   • Baja resolución: Pixeladas al imprimir
+   
+   🔧 COMPORTAMIENTO AUTOMÁTICO:
+   Si subes una imagen de 600x200px (proporción 3:1):
+   • Ancho final: 60mm
+   • Alto final: 20mm (calculado automáticamente)
+   • Sin deformación ni estiramiento
+      • Si están vacías → se usa firma por defecto
+      • Se genera PDF con firmas apropiadas
+      • Se genera diploma con las mismas firmas
+   3. Ambos documentos quedan almacenados en wp-content/uploads/
+
+🚀 VENTAJAS DEL SISTEMA ACTUAL
+   ----------------------------
+   
+   ✅ Flexibilidad: Firmas diferentes por certificado
+   ✅ Simplicidad: Fallback automático a firma por defecto
+   ✅ Seguridad: Validación de URLs
+   ✅ Mantenibilidad: Fácil cambio de firma global
+   ✅ Usabilidad: Interfaz clara en el admin
+   ✅ Consistencia: Mismas firmas en certificado y diploma
+
+=============================================================================
+*/
