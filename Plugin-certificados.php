@@ -107,12 +107,13 @@ function zc_final_mostrar_campos_html($post) {
     echo '</div>';
     
     echo '<p><label><strong>URL Firma del Director (PNG):</strong><br><input type="url" name="certificado_firma_director_url" value="' . esc_attr($firma_director_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-director.png"></label></p>';
-    echo '<p><label><strong>URL Firma del Instructor (PNG):</strong><br><input type="url" name="certificado_firma_instructor_url" value="' . esc_attr($firma_instructor_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-instructor.png"></label></p>';
+    echo '<p><label><strong>URL Firma del Relator (PNG):</strong><br><input type="url" name="certificado_firma_instructor_url" value="' . esc_attr($firma_instructor_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-relator.png"></label></p>';
     
     echo '<div class="zc-warning-box">';
     echo '<strong>💡 URLs de Firmas por Defecto:</strong><br>';
-    echo '• <strong>Firma por defecto:</strong> <code>https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-muestra-scaled.png</code><br>';
-    echo '• Para cambiar las firmas globalmente, reemplaza esta URL en el código o usa los campos de arriba para certificados específicos.<br>';
+    echo '• <strong>Firma Director:</strong> <code>https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png</code><br>';
+    echo '• <strong>Firma Relator:</strong> <code>https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png</code><br>';
+    echo '• Para cambiar las firmas globalmente, reemplaza estas URLs en el código o usa los campos de arriba para certificados específicos.<br>';
     echo '• <strong>Tamaño recomendado:</strong> 400x200 píxeles, fondo transparente PNG';
     echo '</div>';
     
@@ -177,13 +178,37 @@ function zc_final_agregar_pagina_importador() { add_submenu_page('edit.php?post_
 function zc_final_mostrar_pagina_importador() { 
     echo '<div class="wrap"><h1>Importar Certificados desde CSV</h1>'; 
     if (isset($_POST['zc_import_nonce']) && wp_verify_nonce($_POST['zc_import_nonce'], 'zc_import_action')) { 
-        if (!empty($_FILES['csv_file']['tmp_name'])) { 
+        if (!empty($_FILES['csv_file']['tmp_name'])) {
+            // 🚀 OPTIMIZACIONES PARA ARCHIVOS GRANDES
+            ini_set('max_execution_time', 1800); // 30 minutos
+            ini_set('memory_limit', '1024M'); // 1GB RAM
+            
             $csv_file = $_FILES['csv_file']['tmp_name']; 
             $file_handle = fopen($csv_file, 'r'); 
             $headers = fgetcsv($file_handle, 1024, ','); 
             $header_map = array_flip($headers); 
             $importados = 0; 
-            $errores = 0; 
+            $errores = 0;
+            
+            // Mostrar progreso
+            echo '<div id="import-progress" style="background:#f1f1f1;padding:10px;margin:10px 0;">';
+            echo '<div style="background:#0073aa;height:20px;width:0%;transition:width 0.3s;" id="progress-bar"></div>';
+            echo '<p id="progress-text">Iniciando importación...</p></div>';
+            echo '<script>
+                function updateProgress(current, total) {
+                    const percent = Math.round((current / total) * 100);
+                    document.getElementById("progress-bar").style.width = percent + "%";
+                    document.getElementById("progress-text").innerHTML = "Procesando: " + current + "/" + total + " (" + percent + "%)";
+                }
+            </script>';
+            
+            // Contar total de registros
+            $total_registros = 0;
+            while (fgetcsv($file_handle, 1024, ',') !== FALSE) {
+                $total_registros++;
+            }
+            rewind($file_handle);
+            fgetcsv($file_handle, 1024, ','); // Saltar headers nuevamente 
             while (($row = fgetcsv($file_handle, 1024, ',')) !== FALSE) { 
                 $data = array(); 
                 foreach($header_map as $key => $index) { 
@@ -215,16 +240,37 @@ function zc_final_mostrar_pagina_importador() {
                     }
 
                     $importados++; 
+                    
+                    // 🚀 OPTIMIZACIONES PARA ARCHIVOS GRANDES
+                    // Mostrar progreso cada 10 registros
+                    if ($importados % 10 == 0) {
+                        echo '<script>updateProgress(' . $importados . ', ' . $total_registros . ');</script>';
+                        echo str_pad('', 4096) . "\n"; // Forzar flush del buffer
+                        flush();
+                        ob_flush();
+                    }
+                    
+                    // Limpiar memoria cada 25 registros
+                    if ($importados % 25 == 0) {
+                        wp_cache_flush();
+                        if (function_exists('gc_collect_cycles')) {
+                            gc_collect_cycles();
+                        }
+                        // Pausa de 1 segundo cada 25 registros para no sobrecargar
+                        sleep(1);
+                    }
                 } else { 
                     $errores++; 
                 } 
             } 
             fclose($file_handle); 
-            echo '<div class="notice notice-success is-dismissible"><p><strong>Proceso completado:</strong> ' . $importados . ' certificados importados. ' . $errores . ' errores.</p></div>'; 
+            echo '<script>updateProgress(' . $total_registros . ', ' . $total_registros . ');</script>';
+            echo '<div class="notice notice-success is-dismissible"><p><strong>🎉 Importación completada:</strong> ' . $importados . ' certificados importados exitosamente. ' . $errores . ' errores.</p></div>'; 
         } else { 
             echo '<div class="notice notice-error is-dismissible"><p>Por favor, selecciona un archivo CSV.</p></div>';
         } 
     } 
+    echo '<div class="notice notice-warning"><p><strong>⚠️ Archivos grandes (>100 registros):</strong> La importación puede tomar mucho tiempo. Para archivos de 500+ registros, se recomienda dividir en lotes de 50 registros.</p></div>';
     echo '<p>Sube un archivo CSV con las columnas: <strong>titulo, codigo, participante, curso, fecha, director, instructor</strong>.</p>'; 
     echo '<form method="post" enctype="multipart/form-data">'; 
     wp_nonce_field('zc_import_action', 'zc_import_nonce'); 
@@ -236,9 +282,219 @@ function zc_final_mostrar_pagina_importador() {
 // =============================================================================
 // PARTE 5: SHORTCODE DE VERIFICACIÓN (EXPANDIDO PARA GRUPALES)
 // =============================================================================
-add_shortcode('verificador_de_certificados', 'zc_final_funcion_verificadora');
+
+// 🔧 PREVENIR MÚLTIPLES REGISTROS DEL SHORTCODE
+if (!shortcode_exists('verificador_de_certificados')) {
+    add_shortcode('verificador_de_certificados', 'zc_final_funcion_verificadora');
+}
+
 function zc_final_funcion_verificadora() { 
+    // 🔧 PREVENIR EJECUCIONES DUPLICADAS DEL SHORTCODE
+    static $shortcode_executed = false;
+    if ($shortcode_executed) {
+        return '<!-- Shortcode verificador_de_certificados ya ejecutado -->';
+    }
+    $shortcode_executed = true;
+    
     ob_start(); 
+    
+    // 🎨 AGREGAR ESTILOS CSS PARA EL VERIFICADOR
+    ?>
+    <style>
+    .zc-validador-container {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .zc-validador-container h2, 
+    .zc-validador-container h3, 
+    .zc-validador-container h4 {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        color: #2c3e50;
+        margin-bottom: 15px;
+    }
+    
+    .zc-validador-container p {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        line-height: 1.6;
+        color: #555;
+    }
+    
+    .zc-form-verificacion {
+        background: #f8f9fa;
+        padding: 25px;
+        border-radius: 8px;
+        margin: 20px 0;
+        border-left: 4px solid #28a745;
+    }
+    
+    .zc-input-codigo {
+        width: 100%;
+        padding: 12px 15px;
+        font-size: 16px !important;
+        font-family: 'Courier New', monospace !important;
+        border: 2px solid #ddd;
+        border-radius: 5px;
+        margin: 0;
+        text-transform: uppercase;
+        display: block;
+        box-sizing: border-box;
+    }
+    
+    .zc-btn-verificar {
+        background: #28a745;
+        color: white;
+        padding: 12px 25px;
+        border: none;
+        border-radius: 5px;
+        font-size: 16px !important;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        cursor: pointer;
+        transition: background 0.3s;
+        display: inline-block;
+        width: 100%;
+    }
+    
+    .zc-btn-verificar:hover {
+        background: #218838;
+    }
+    
+    .zc-resultado-valido {
+        background: #ffffffff;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+    }
+    
+    .zc-resultado-error {
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+    }
+    
+    .zc-info-certificado {
+        background: white;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 15px 0;
+        border-left: 4px solid #007bff;
+    }
+    
+    .zc-instrucciones {
+        background: #e9ecef;
+        padding: 20px;
+        border-radius: 8px;
+        margin-top: 20px;
+    }
+    
+    .zc-instrucciones h4 {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        color: #2c3e50;
+        margin-bottom: 15px;
+        font-size: 18px;
+        font-weight: 600;
+    }
+    
+    .zc-instrucciones ul {
+        padding-left: 20px;
+    }
+    
+    .zc-instrucciones li {
+        margin-bottom: 8px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+    }
+    
+    .zc-botones-descarga {
+        margin: 20px 0;
+        text-align: center;
+    }
+    
+    .zc-btn-descargar {
+        display: inline-block;
+        padding: 12px 25px;
+        margin: 5px 10px;
+        background: #007bff;
+        color: white !important;
+        text-decoration: none !important;
+        border-radius: 5px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        transition: background 0.3s;
+    }
+    
+    .zc-btn-descargar:hover {
+        background: #0056b3;
+        color: white !important;
+    }
+    
+    .zc-pdf-viewer {
+        margin: 20px 0;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    
+    .zc-pdf-viewer h4 {
+        background: #f8f9fa;
+        margin: 0;
+        padding: 15px;
+        border-bottom: 1px solid #ddd;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+    }
+    
+    .zc-pdf-viewer iframe {
+        border: none;
+        display: block;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+        .zc-validador-container {
+            padding: 10px;
+            margin: 5px;
+        }
+        
+        .zc-form-verificacion {
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .zc-instrucciones {
+            padding: 15px;
+            margin-top: 15px;
+        }
+        
+        .zc-input-codigo {
+            width: 100%;
+            max-width: none;
+            margin: 0 0 15px 0;
+        }
+        
+        .zc-btn-verificar {
+            width: 100%;
+        }
+    }
+    </style>
+    <?php
+    
+    // 🔧 DEBUG: Mostrar información de debug para URLs (solo para administradores)
+    if (current_user_can('administrator') && isset($_GET['debug']) && $_GET['debug'] === '1') {
+        echo '<div style="background:#f0f0f0;padding:10px;margin:10px 0;border:1px solid #ddd;">';
+        echo '<h4>🔧 Información de Debug (solo administradores)</h4>';
+        echo '<p><strong>GET parameter "id":</strong> ' . (isset($_GET['id']) ? esc_html($_GET['id']) : 'No definido') . '</p>';
+        echo '<p><strong>URL actual:</strong> ' . esc_html($_SERVER['REQUEST_URI']) . '</p>';
+        echo '<p><strong>URL completa:</strong> ' . esc_html('https://' . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI']) . '</p>';
+        echo '</div>';
+    }
     ?>
     <div class="zc-validador-container">
     <?php
@@ -387,25 +643,45 @@ function zc_final_funcion_verificadora() {
     ?>
     
     <div class="zc-form-verificacion">
-        <h3>Verificador de Certificados</h3>
+        <h3>🔍 Verificador de Certificados</h3>
         <p>Ingresa el código único de tu certificado para verificar su autenticidad</p>
         
-        <form action="<?php echo esc_url(get_permalink()); ?>" method="get">
-            <input type="text" 
-                   id="id" 
-                   name="id" 
-                   value="" 
-                   placeholder="Ej: ZA2024-001, base-1, etc." 
-                   class="zc-input-codigo"
-                   required>
-            <button type="submit" class="zc-btn-verificar">Verificar Certificado</button>
+        <form action="<?php echo esc_url(get_permalink()); ?>" method="get" style="margin-top: 20px;">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <input type="text" 
+                       id="id" 
+                       name="id" 
+                       value="<?php echo isset($_GET['id']) ? esc_attr($_GET['id']) : ''; ?>" 
+                       placeholder="Ej: ZA2024-001, base-1, etc." 
+                       class="zc-input-codigo"
+                       required>
+            </div>
+            <div style="text-align: center;">
+                <button type="submit" class="zc-btn-verificar">✓ Verificar Certificado</button>
+            </div>
         </form>
+        
+        <?php if (!isset($_GET['id']) || empty($_GET['id'])): ?>
+            <div class="zc-instrucciones">
+                <h4>• Instrucciones de Uso:</h4>
+                <ul>
+                    <li>📱<strong>Escanea el código QR</strong> de tu certificado con tu teléfono</li>
+                    <li>⌨<strong>O ingresa manualmente</strong> el código que aparece en tu certificado</li>
+                    <li>✓<strong>El sistema verificará automáticamente</strong> la autenticidad del documento</li>
+                </ul>
+            </div>
+        <?php endif; ?>
     </div>
     
-    </div>
+    <!-- Fin del Verificador de Certificados Zen Activo -->
     <?php
     
-    return ob_get_clean(); 
+    $output = ob_get_clean();
+    
+    // 🔧 LIMPIAR ESPACIOS EN BLANCO EXTRAS
+    $output = trim($output);
+    
+    return $output;
 }
 
 // =============================================================================
@@ -418,7 +694,7 @@ class ZC_PDF_Certificado extends TCPDF {
     // Sobrescribimos el método Header
     public function Header() {
         // Imagen de fondo que se repetirá en cada página
-        $image_file = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-a4-2.png';
+        $image_file = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-FINAL-scaled.png';
         
         // Guardar el estado actual de AutoPageBreak y márgenes
         $bMargin = $this->getBreakMargin();
@@ -448,24 +724,25 @@ function zc_final_generar_pdf($post_id, $post) {
     $codigo = get_post_meta($post_id, '_certificado_codigo', true);
     $curso = get_post_meta($post_id, '_certificado_curso', true);
     $empresa = get_post_meta($post_id, '_certificado_empresa', true);
-    $director = get_post_meta($post_id, '_certificado_director', true) ?: 'Nombre Director';
-    $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: 'Nombre Instructor';
+    $director = get_post_meta($post_id, '_certificado_director', true) ?: '';
+    $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: '';
     $duracion = get_post_meta($post_id, '_certificado_duracion', true);
     $fecha_realizacion = get_post_meta($post_id, '_certificado_fecha_realizacion', true);
     $fecha_expiracion = get_post_meta($post_id, '_certificado_fecha_expiracion', true);
     $oc_cliente = get_post_meta($post_id, '_certificado_oc_cliente', true);
     $listado_participantes_raw = get_post_meta($post_id, '_certificado_listado_participantes', true);
-    $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
+    $verification_url = 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/?id=' . urlencode($codigo);
     
     // 🔧 OBTENER URLs DE FIRMAS PERSONALIZADAS (con fallback a firma por defecto)
     $firma_director_url = get_post_meta($post_id, '_certificado_firma_director_url', true);
     $firma_instructor_url = get_post_meta($post_id, '_certificado_firma_instructor_url', true);
     
-    // URLs por defecto si no se especifican personalizadas
-    $firma_default_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-muestra-scaled.png';
+    // URLs por defecto específicas para director e instructor
+    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png';
+    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png';
     
-    if (empty($firma_director_url)) $firma_director_url = $firma_default_url;
-    if (empty($firma_instructor_url)) $firma_instructor_url = $firma_default_url;
+    if (empty($firma_director_url)) $firma_director_url = $firma_director_default;
+    if (empty($firma_instructor_url)) $firma_instructor_url = $firma_instructor_default;
 
     // --- INICIALIZAR CON LA CLASE PDF PERSONALIZADA ---
     $pdf = new ZC_PDF_Certificado('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -598,7 +875,7 @@ EOD;
     // 🎯 USAR FIRMAS PERSONALIZADAS O POR DEFECTO
     // Las URLs ya están definidas arriba con fallback automático
     
-    // FIRMA DEL DIRECTOR (lado izquierdo)
+    // FIRMA DEL DIRECTOR (lado izquierdo) - Imagen siempre se muestra
     $pdf->SetFont($font, 'B', 11);
     $pdf->SetTextColor(50, 50, 50);
     
@@ -615,30 +892,34 @@ EOD;
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell($firmaWidth, 6, 'Firma Director', 0, 0, 'C');
     
-    // Nombre del director centrado debajo
-    $pdf->SetXY($firmaDirectorX, $yLinea + 8);
-    $pdf->SetFont($font, '', 9);
-    $pdf->SetTextColor(100, 100, 100);
-    $pdf->Cell($firmaWidth, 6, $director, 0, 0, 'C');
+    // Nombre del director centrado debajo - SOLO SI NO ESTÁ VACÍO
+    if (!empty($director)) {
+        $pdf->SetXY($firmaDirectorX, $yLinea + 8);
+        $pdf->SetFont($font, '', 9);
+        $pdf->SetTextColor(100, 100, 100);
+        $pdf->Cell($firmaWidth, 6, $director, 0, 0, 'C');
+    }
 
-    // FIRMA DEL INSTRUCTOR (lado derecho)
+    // FIRMA DEL INSTRUCTOR (lado derecho) - Imagen siempre se muestra
     // Imagen de firma del instructor (personalizada o por defecto) - Ancho fijo, alto proporcional
     $pdf->Image($firma_instructor_url, $firmaInstructorX + 10, $yFirmas, 60, 0, '', '', '', false, 300, '', false, false, 0);
     
     // Línea debajo de la firma del instructor
     $pdf->Line($firmaInstructorX, $yLinea, $firmaInstructorX + $firmaWidth, $yLinea);
     
-    // Texto "Firma Instructor" centrado debajo de la línea
+    // Texto "Firma Relator" centrado debajo de la línea
     $pdf->SetXY($firmaInstructorX, $yLinea + 2);
     $pdf->SetFont($font, 'B', 10);
     $pdf->SetTextColor(80, 80, 80);
-    $pdf->Cell($firmaWidth, 6, 'Firma Instructor', 0, 0, 'C');
+    $pdf->Cell($firmaWidth, 6, 'Firma Relator', 0, 0, 'C');
     
-    // Nombre del instructor centrado debajo
-    $pdf->SetXY($firmaInstructorX, $yLinea + 8);
-    $pdf->SetFont($font, '', 9);
-    $pdf->SetTextColor(100, 100, 100);
-    $pdf->Cell($firmaWidth, 6, $instructor, 0, 1, 'C');
+    // Nombre del instructor centrado debajo - SOLO SI NO ESTÁ VACÍO
+    if (!empty($instructor)) {
+        $pdf->SetXY($firmaInstructorX, $yLinea + 8);
+        $pdf->SetFont($font, '', 9);
+        $pdf->SetTextColor(100, 100, 100);
+        $pdf->Cell($firmaWidth, 6, $instructor, 0, 1, 'C');
+    }
 
     // --- PIE DE PÁGINA CON TEXTO Y QR (POSICIÓN ÓPTIMA CALCULADA) ---
     // 🔧 SOLUCIÓN AL PROBLEMA DEL QR: Calcular posición dinámica en lugar de fija
@@ -669,7 +950,7 @@ EOD;
     $pdf->Cell(0, 5, 'Verifica este certificado en:', 0, 1, 'L');
     $pdf->SetFont($font, 'U', 9);
     $pdf->SetTextColor(40, 80, 150);
-    $pdf->Cell(0, 5, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
+    $pdf->Cell(0, 5, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/', 0, 1, 'L', false, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/');
     
     // QR Code en posición fija relativa al texto
     $qrSize = 35;
@@ -702,18 +983,18 @@ function zc_final_generar_diploma($post_id, $post) {
     $participante = get_post_meta($post_id, '_certificado_participante', true);
     $curso = get_post_meta($post_id, '_certificado_curso', true);
     $fecha = get_post_meta($post_id, '_certificado_fecha', true);
-    $director = get_post_meta($post_id, '_certificado_director', true) ?: 'Nombre Director';
-    $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: 'Nombre Instructor';
+    $director = get_post_meta($post_id, '_certificado_director', true) ?: '';
+    $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: '';
     $empresa = get_post_meta($post_id, '_certificado_empresa', true); // Obtener el dato de la empresa
-    $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
+    $verification_url = 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/?id=' . urlencode($codigo);
     
     // 🔧 OBTENER URLs DE FIRMAS PERSONALIZADAS PARA DIPLOMA (con fallback)
     $firma_director_url = get_post_meta($post_id, '_certificado_firma_director_url', true);
     $firma_instructor_url = get_post_meta($post_id, '_certificado_firma_instructor_url', true);
     
     // URLs por defecto específicas para director e instructor
-    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director.png';
-    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-instructor.png';
+    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png';
+    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png';
     
     if (empty($firma_director_url)) $firma_director_url = $firma_director_default;
     if (empty($firma_instructor_url)) $firma_instructor_url = $firma_instructor_default;
@@ -821,15 +1102,19 @@ function zc_final_generar_diploma($post_id, $post) {
     $pdf->SetXY($firmaDirectorX, $yLinea + 2);
     $pdf->Cell($firmaWidth, 6, 'Firma Director', 0, 0, 'C');
     $pdf->SetXY($firmaInstructorX, $yLinea + 2);
-    $pdf->Cell($firmaWidth, 6, 'Firma Instructor', 0, 0, 'C');
+    $pdf->Cell($firmaWidth, 6, 'Firma Relator', 0, 0, 'C');
     
-    // Nombres debajo de los títulos
+    // Nombres debajo de los títulos - SOLO SI NO ESTÁN VACÍOS
     $pdf->SetFont($font, '', 9);
     $pdf->SetTextColor(100, 100, 100);
-    $pdf->SetXY($firmaDirectorX, $yLinea + 8);
-    $pdf->Cell($firmaWidth, 6, $director, 0, 0, 'C');
-    $pdf->SetXY($firmaInstructorX, $yLinea + 8);
-    $pdf->Cell($firmaWidth, 6, $instructor, 0, 1, 'C');
+    if (!empty($director)) {
+        $pdf->SetXY($firmaDirectorX, $yLinea + 8);
+        $pdf->Cell($firmaWidth, 6, $director, 0, 0, 'C');
+    }
+    if (!empty($instructor)) {
+        $pdf->SetXY($firmaInstructorX, $yLinea + 8);
+        $pdf->Cell($firmaWidth, 6, $instructor, 0, 1, 'C');
+    }
 
     // --- QR Y DATOS DE VERIFICACIÓN (ESQUINA INFERIOR DERECHA) ---
     $yFooter = 180;
@@ -840,7 +1125,7 @@ function zc_final_generar_diploma($post_id, $post) {
     $pdf->Cell(0, 4, 'Valida este diploma en:', 0, 1, 'L');
     $pdf->SetFont($font, 'U', 8);
     $pdf->SetTextColor(40, 80, 150);
-    $pdf->Cell(0, 4, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
+    $pdf->Cell(0, 4, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/', 0, 1, 'L', false, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/');
     $pdf->SetFont($font, '', 8);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell(0, 4, 'Código: ' . $codigo, 0, 1, 'L');
@@ -959,7 +1244,7 @@ function zc_get_custom_css() {
     .zc-btn-verificar {
         background: linear-gradient(135deg, #84BC41, #6ba32f) !important;
         color: white !important;
-        padding: 18px 40px !important;
+        padding: 18px 20px !important;
         border: none !important;
         border-radius: 15px !important;
         font-size: 18px !important;
@@ -980,18 +1265,12 @@ function zc_get_custom_css() {
         box-shadow: 0 10px 25px rgba(132, 188, 65, 0.3) !important;
     }
     
-    .zc-btn-verificar:before {
-        content: "\\f00c";
-        font-family: "Font Awesome 6 Free";
-        font-weight: 900;
-    }
-    
     /* Resultados de verificación */
     .zc-resultado-valido {
         background: linear-gradient(145deg, #ffffff, #f0fdf4);
         border: 2px solid #84BC41 !important;
         border-radius: 20px !important;
-        padding: 40px !important;
+        padding: 20px !important;
         margin-bottom: 30px !important;
         box-shadow: 0 20px 40px rgba(132, 188, 65, 0.1) !important;
         font-family: "Inter", sans-serif !important;
@@ -1114,7 +1393,7 @@ function zc_get_custom_css() {
         background: linear-gradient(145deg, #ffffff, #e8f5e8);
         border: 2px solid #2e7d32 !important;
         border-radius: 20px !important;
-        padding: 40px !important;
+        padding: 20px !important;
         margin-bottom: 30px !important;
         box-shadow: 0 20px 40px rgba(46, 125, 50, 0.1) !important;
         font-family: "Inter", sans-serif !important;
@@ -1145,7 +1424,7 @@ function zc_get_custom_css() {
         background: linear-gradient(145deg, #ffffff, #fef2f2);
         border: 2px solid #F44336 !important;
         border-radius: 20px !important;
-        padding: 40px !important;
+        padding: 20px !important;
         margin-bottom: 30px !important;
         box-shadow: 0 20px 40px rgba(244, 67, 54, 0.1) !important;
         font-family: "Inter", sans-serif !important;
@@ -1561,8 +1840,8 @@ function zc_grupal_mostrar_campos_html($post) {
     echo '<p style="color: #666;">Si no se especifican URLs, se usarán las firmas predeterminadas del sistema.</p>';
     echo '<p><label><strong>URL Firma Director (PNG):</strong><br>';
     echo '<input type="url" name="certificado_grupal_firma_director_url" value="' . esc_attr($firma_director_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-director.png"></label></p>';
-    echo '<p><label><strong>URL Firma Instructor (PNG):</strong><br>';
-    echo '<input type="url" name="certificado_grupal_firma_instructor_url" value="' . esc_attr($firma_instructor_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-instructor.png"></label></p>';
+    echo '<p><label><strong>URL Firma Relator (PNG):</strong><br>';
+    echo '<input type="url" name="certificado_grupal_firma_instructor_url" value="' . esc_attr($firma_instructor_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-relator.png"></label></p>';
     echo '</div>';
     
     echo '<div class="zc-url-section">';
@@ -1777,14 +2056,14 @@ function zc_grupal_generar_pdf_manual($post_id, $post) {
     $codigo = get_post_meta($post_id, '_certificado_grupal_codigo', true);
     $curso = get_post_meta($post_id, '_certificado_grupal_curso', true);
     $empresa = get_post_meta($post_id, '_certificado_grupal_empresa', true);
-    $director = get_post_meta($post_id, '_certificado_grupal_director', true) ?: 'Nombre Director';
-    $instructor = get_post_meta($post_id, '_certificado_grupal_instructor', true) ?: 'Nombre Instructor';
+    $director = get_post_meta($post_id, '_certificado_grupal_director', true) ?: '';
+    $instructor = get_post_meta($post_id, '_certificado_grupal_instructor', true) ?: '';
     $duracion = get_post_meta($post_id, '_certificado_grupal_duracion', true);
     $fecha_realizacion = get_post_meta($post_id, '_certificado_grupal_fecha_realizacion', true);
     $fecha_expiracion = get_post_meta($post_id, '_certificado_grupal_fecha_expiracion', true);
     $oc_cliente = get_post_meta($post_id, '_certificado_grupal_oc_cliente', true);
     $listado_participantes_raw = get_post_meta($post_id, '_certificado_grupal_listado_participantes', true);
-    $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
+    $verification_url = 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/?id=' . urlencode($codigo);
 
     // --- INICIALIZAR CON LA CLASE PDF PERSONALIZADA (IGUAL QUE INDIVIDUAL) ---
     $pdf = new ZC_PDF_Certificado('P', 'mm', 'A4', true, 'UTF-8', false);
@@ -1913,8 +2192,8 @@ EOD;
     $firma_instructor_url = get_post_meta($post_id, '_certificado_grupal_firma_instructor_url', true);
     
     // Firmas predeterminadas
-    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director.png';
-    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-instructor.png';
+    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png';
+    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png';
     
     // Usar firma personalizada o predeterminada
     $firma_director_final = !empty($firma_director_url) ? $firma_director_url : $firma_director_default;
@@ -1944,7 +2223,21 @@ EOD;
     $pdf->SetX($firmaDirectorX);
     $pdf->Cell(80, 10, 'Firma Director', 0, 0, 'C');
     $pdf->SetX($firmaInstructorX);
-    $pdf->Cell(80, 10, 'Firma Instructor', 0, 1, 'C');
+    $pdf->Cell(80, 10, 'Firma Relator', 0, 1, 'C');
+    
+    // Nombres debajo de los títulos - SOLO SI NO ESTÁN VACÍOS
+    $pdf->SetFont($font, '', 9);
+    $pdf->SetTextColor(100, 100, 100);
+    if (!empty($director)) {
+        $pdf->SetY($yLinea + 8);
+        $pdf->SetX($firmaDirectorX);
+        $pdf->Cell(80, 6, $director, 0, 0, 'C');
+    }
+    if (!empty($instructor)) {
+        $pdf->SetY($yLinea + 8);
+        $pdf->SetX($firmaInstructorX);
+        $pdf->Cell(80, 6, $instructor, 0, 1, 'C');
+    }
 
     // --- PIE DE PÁGINA CON TEXTO Y QR (IDÉNTICO AL INDIVIDUAL) ---
     $yPositionFooter = 220;
@@ -1962,7 +2255,7 @@ EOD;
     $pdf->Cell(0, 5, 'Verifica este certificado en:', 0, 1, 'L');
     $pdf->SetFont($font, 'U', 9);
     $pdf->SetTextColor(40, 80, 150);
-    $pdf->Cell(0, 5, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
+    $pdf->Cell(0, 5, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/', 0, 1, 'L', false, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/');
     
     $qrSize = 35;
     $qrX = 150;
@@ -1993,13 +2286,37 @@ function zc_grupal_agregar_pagina_importador() {
 function zc_grupal_mostrar_pagina_importador() { 
     echo '<div class="wrap"><h1>Importar Certificados Grupales desde CSV</h1>'; 
     if (isset($_POST['zc_grupal_import_nonce']) && wp_verify_nonce($_POST['zc_grupal_import_nonce'], 'zc_grupal_import_action')) { 
-        if (!empty($_FILES['csv_file']['tmp_name'])) { 
+        if (!empty($_FILES['csv_file']['tmp_name'])) {
+            // 🚀 OPTIMIZACIONES PARA ARCHIVOS GRANDES
+            ini_set('max_execution_time', 3600); // 60 minutos para grupales
+            ini_set('memory_limit', '2048M'); // 2GB RAM para grupales
+            
             $csv_file = $_FILES['csv_file']['tmp_name']; 
             $file_handle = fopen($csv_file, 'r'); 
             $headers = fgetcsv($file_handle, 1024, ','); 
             $header_map = array_flip($headers); 
             $importados = 0; 
-            $errores = 0; 
+            $errores = 0;
+            
+            // Mostrar progreso para grupales
+            echo '<div id="import-progress" style="background:#f1f1f1;padding:10px;margin:10px 0;">';
+            echo '<div style="background:#d63638;height:20px;width:0%;transition:width 0.3s;" id="progress-bar"></div>';
+            echo '<p id="progress-text">Iniciando importación grupal...</p></div>';
+            echo '<script>
+                function updateProgress(current, total) {
+                    const percent = Math.round((current / total) * 100);
+                    document.getElementById("progress-bar").style.width = percent + "%";
+                    document.getElementById("progress-text").innerHTML = "Procesando grupo: " + current + "/" + total + " (" + percent + "%) - Generando certificados individuales...";
+                }
+            </script>';
+            
+            // Contar total de registros grupales
+            $total_registros = 0;
+            while (fgetcsv($file_handle, 1024, ',') !== FALSE) {
+                $total_registros++;
+            }
+            rewind($file_handle);
+            fgetcsv($file_handle, 1024, ','); // Saltar headers nuevamente 
             while (($row = fgetcsv($file_handle, 1024, ',')) !== FALSE) { 
                 $data = array(); 
                 foreach($header_map as $key => $index) { 
@@ -2032,16 +2349,37 @@ function zc_grupal_mostrar_pagina_importador() {
                     }
 
                     $importados++; 
+                    
+                    // 🚀 OPTIMIZACIONES PARA CERTIFICADOS GRUPALES
+                    // Mostrar progreso cada 2 registros (ya que grupales son más pesados)
+                    if ($importados % 2 == 0) {
+                        echo '<script>updateProgress(' . $importados . ', ' . $total_registros . ');</script>';
+                        echo str_pad('', 4096) . "\n"; // Forzar flush del buffer
+                        flush();
+                        ob_flush();
+                    }
+                    
+                    // Limpiar memoria cada 5 registros grupales
+                    if ($importados % 5 == 0) {
+                        wp_cache_flush();
+                        if (function_exists('gc_collect_cycles')) {
+                            gc_collect_cycles();
+                        }
+                        // Pausa de 3 segundos cada 5 registros grupales
+                        sleep(3);
+                    }
                 } else { 
                     $errores++; 
                 } 
             } 
             fclose($file_handle); 
-            echo '<div class="notice notice-success is-dismissible"><p><strong>Proceso completado:</strong> ' . $importados . ' certificados grupales importados. ' . $errores . ' errores.</p></div>'; 
+            echo '<script>updateProgress(' . $total_registros . ', ' . $total_registros . ');</script>';
+            echo '<div class="notice notice-success is-dismissible"><p><strong>🎉 Importación grupal completada:</strong> ' . $importados . ' certificados grupales importados exitosamente. ' . $errores . ' errores.</p></div>'; 
         } else { 
             echo '<div class="notice notice-error is-dismissible"><p>Por favor, selecciona un archivo CSV.</p></div>';
         } 
     } 
+    echo '<div class="notice notice-warning"><p><strong>⚠️ IMPORTANTE para certificados grupales:</strong> Cada registro grupal genera múltiples PDFs individuales. Para archivos grandes, el proceso puede tomar HORAS. Se recomienda fuertemente dividir en lotes de 10-20 grupos.</p></div>';
     echo '<p>Sube un archivo CSV con las columnas: <strong>titulo, codigo, empresa, curso, fecha, director, instructor, participantes</strong>.</p>'; 
     echo '<form method="post" enctype="multipart/form-data">'; 
     wp_nonce_field('zc_grupal_import_action', 'zc_grupal_import_nonce'); 
@@ -2113,10 +2451,10 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $participante = get_post_meta($post_id_individual, '_certificado_participante', true);
         $curso_individual = get_post_meta($post_id_individual, '_certificado_curso', true);
         $fecha = get_post_meta($post_id_individual, '_certificado_fecha', true);
-        $director = get_post_meta($post_id_individual, '_certificado_director', true) ?: 'Nombre Director';
-        $instructor = get_post_meta($post_id_individual, '_certificado_instructor', true) ?: 'Nombre Instructor';
+        $director = get_post_meta($post_id_individual, '_certificado_director', true) ?: '';
+        $instructor = get_post_meta($post_id_individual, '_certificado_instructor', true) ?: '';
         $empresa_individual = get_post_meta($post_id_individual, '_certificado_empresa', true);
-        $verification_url = home_url('/pagina-de-verificacion-test/?id=' . urlencode($codigo));
+        $verification_url = 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/?id=' . urlencode($codigo);
         
         // Agregar nueva página para cada diploma
         $pdf->AddPage();
@@ -2185,8 +2523,8 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $firma_instructor_url = get_post_meta($post_id_grupal, '_certificado_grupal_firma_instructor_url', true);
         
         // Firmas predeterminadas  
-        $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director.png';
-        $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-instructor.png';
+        $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png';
+        $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png';
         
         // Usar firma personalizada o predeterminada
         $firma_director_final = !empty($firma_director_url) ? $firma_director_url : $firma_director_default;
@@ -2211,7 +2549,19 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $pdf->SetXY($firmaDirectorX, $yLinea + 2);
         $pdf->Cell(80, 10, 'Firma Director', 0, 0, 'C');
         $pdf->SetXY($firmaInstructorX, $yLinea + 2);
-        $pdf->Cell(80, 10, 'Firma Instructor', 0, 1, 'C');
+        $pdf->Cell(80, 10, 'Firma Relator', 0, 1, 'C');
+        
+        // Nombres debajo de los títulos - SOLO SI NO ESTÁN VACÍOS
+        $pdf->SetFont($font, '', 9);
+        $pdf->SetTextColor(100, 100, 100);
+        if (!empty($director)) {
+            $pdf->SetXY($firmaDirectorX, $yLinea + 8);
+            $pdf->Cell(80, 6, $director, 0, 0, 'C');
+        }
+        if (!empty($instructor)) {
+            $pdf->SetXY($firmaInstructorX, $yLinea + 8);
+            $pdf->Cell(80, 6, $instructor, 0, 1, 'C');
+        }
         
         // QR y datos de verificación
         $yFooter = 180;
@@ -2222,7 +2572,7 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $pdf->Cell(0, 4, 'Valida este diploma en:', 0, 1, 'L');
         $pdf->SetFont($font, 'U', 8);
         $pdf->SetTextColor(40, 80, 150);
-        $pdf->Cell(0, 4, home_url('/pagina-de-verificacion-test/'), 0, 1, 'L', false, home_url('/pagina-de-verificacion-test/'));
+        $pdf->Cell(0, 4, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/', 0, 1, 'L', false, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/');
         $pdf->SetFont($font, '', 8);
         $pdf->SetTextColor(80, 80, 80);
         $pdf->Cell(0, 4, 'Código: ' . $codigo, 0, 1, 'L');
@@ -2289,11 +2639,11 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
    • Ubicación en PDF: 60x20mm (certificado), 60x15mm (diploma)
    
    🎨 FONDOS:
-   • Certificado individual: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-a4-2.png
+   • Certificado individual: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-FINAL-scaled.png
    • Diploma horizontal: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/diploma-zenactivo.png
    
    🔗 VERIFICACIÓN:
-   • URL base: home_url('/pagina-de-verificacion-test/')
+   • URL base: https://validador.zenactivospa.cl/pagina-de-verificacion-zen/
    • Parámetro: ?id=[codigo_certificado]
 
 ⚙️ PARA CAMBIAR FIRMAS GLOBALMENTE (SIN FORMULARIO)
@@ -2405,3 +2755,4 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
 
 =============================================================================
 */
+
