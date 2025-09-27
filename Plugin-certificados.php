@@ -83,7 +83,7 @@ function zc_final_mostrar_campos_html($post) {
     echo '<p><label><strong>Fecha de Emisión:</strong><br><input type="date" name="certificado_fecha" value="' . esc_attr($fecha) . '"></label></p>';
     echo '<p><label><strong>Fecha de Realización:</strong><br><input type="date" name="certificado_fecha_realizacion" value="' . esc_attr($fecha_realizacion) . '"></label></p>';
     echo '<p><label><strong>Fecha de Expiración:</strong><br><input type="date" name="certificado_fecha_expiracion" value="' . esc_attr($fecha_expiracion) . '"></label></p>';
-    echo '<p><label><strong>O.C. Cliente:</strong><br><input type="text" name="certificado_oc_cliente" value="' . esc_attr($oc_cliente) . '" style="width:100%;"></label></p>';
+    echo '<p><label><strong>Cliente:</strong><br><input type="text" name="certificado_oc_cliente" value="' . esc_attr($oc_cliente) . '" style="width:100%;"></label></p>';
     echo '</div>';
 
     echo '<div class="zc-admin-section">';
@@ -111,8 +111,8 @@ function zc_final_mostrar_campos_html($post) {
     
     echo '<div class="zc-warning-box">';
     echo '<strong>💡 URLs de Firmas por Defecto:</strong><br>';
-    echo '• <strong>Firma Director:</strong> <code>https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png</code><br>';
-    echo '• <strong>Firma Relator:</strong> <code>https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png</code><br>';
+    echo '• <strong>Firma Director:</strong> <code>https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director-final.png</code><br>';
+    echo '• <strong>Firma Relator:</strong> <code>https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-relator-final.png</code><br>';
     echo '• Para cambiar las firmas globalmente, reemplaza estas URLs en el código o usa los campos de arriba para certificados específicos.<br>';
     echo '• <strong>Tamaño recomendado:</strong> 400x200 píxeles, fondo transparente PNG';
     echo '</div>';
@@ -528,7 +528,7 @@ function zc_final_funcion_verificadora() {
                 ?>
                 
                 <div class="zc-resultado-valido">
-                    <h2>¡Certificado Individual Válido!</h2>
+                    <h2>¡Certificado de capacitación válido!</h2>
                     <div class="zc-info-certificado">
                         <p><strong>Participante:</strong> <?php echo esc_html($participante); ?></p>
                         <p><strong>Curso:</strong> <?php echo esc_html($curso); ?></p>
@@ -738,8 +738,8 @@ function zc_final_generar_pdf($post_id, $post) {
     $firma_instructor_url = get_post_meta($post_id, '_certificado_firma_instructor_url', true);
     
     // URLs por defecto específicas para director e instructor
-    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png';
-    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png';
+    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director-final.png';
+    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-relator-final.png';
     
     if (empty($firma_director_url)) $firma_director_url = $firma_director_default;
     if (empty($firma_instructor_url)) $firma_instructor_url = $firma_instructor_default;
@@ -787,7 +787,7 @@ function zc_final_generar_pdf($post_id, $post) {
             <td>$fecha_expiracion</td>
         </tr>
         <tr>
-            <td style="background-color:#e0e0e0;"><b>O.C. Cliente</b></td>
+            <td style="background-color:#e0e0e0;"><b>Cliente</b></td>
             <td>$oc_cliente</td>
         </tr>
     </table>
@@ -993,8 +993,8 @@ function zc_final_generar_diploma($post_id, $post) {
     $firma_instructor_url = get_post_meta($post_id, '_certificado_firma_instructor_url', true);
     
     // URLs por defecto específicas para director e instructor
-    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png';
-    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png';
+    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director-final.png';
+    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-relator-final.png';
     
     if (empty($firma_director_url)) $firma_director_url = $firma_director_default;
     if (empty($firma_instructor_url)) $firma_instructor_url = $firma_instructor_default;
@@ -1024,11 +1024,11 @@ function zc_final_generar_diploma($post_id, $post) {
 
     // --- INICIO: CONTENIDO DEL DIPLOMA AJUSTADO Y CENTRADO ---
 
-    // Título "CERTIFICADO"
+    // Título "DIPLOMA DE APROBACIÓN"
     $pdf->SetY(25);
-    $pdf->SetFont($font, 'B', 36);
+    $pdf->SetFont($font, 'B', 30);
     $pdf->SetTextColor(50, 50, 50);
-    $pdf->Cell(0, 15, 'CERTIFICADO', 0, 1, 'C');
+    $pdf->Cell(0, 15, 'DIPLOMA DE APROBACIÓN', 0, 1, 'C');
 
     // Subtítulo "ZEN ACTIVO"
     $pdf->SetFont($font, 'B', 18);
@@ -1068,7 +1068,15 @@ function zc_final_generar_diploma($post_id, $post) {
     $pdf->SetFont($font, 'B', 18);
     $pdf->SetTextColor(132, 188, 65);
     $pdf->MultiCell(0, 12, $curso, 0, 'C');
-    $pdf->Ln(15);
+    $pdf->Ln(8);
+    
+    // Información adicional del diploma
+    $pdf->SetFont($font, '', 11);
+    $pdf->SetTextColor(80, 80, 80);
+    $pdf->Cell(0, 8, 'Duración: 40 horas académicas', 0, 1, 'C');
+    $pdf->Cell(0, 8, 'Asistencia: 100%', 0, 1, 'C');
+    $pdf->Cell(0, 8, 'Nota Final: 7.0 (Aprobado)', 0, 1, 'C');
+    $pdf->Ln(8);
 
     // --- SECCIÓN DE FIRMAS CON IMAGEN PNG (CENTRADO HORIZONTAL) ---
     $yFirmas = 140; // 🔝 Subido 10mm para mejor posicionamiento
@@ -1815,7 +1823,7 @@ function zc_grupal_mostrar_campos_html($post) {
     echo '<p><label><strong>Fecha de Emisión:</strong><br><input type="date" name="certificado_grupal_fecha" value="' . esc_attr($fecha) . '"></label></p>';
     echo '<p><label><strong>Fecha de Realización:</strong><br><input type="date" name="certificado_grupal_fecha_realizacion" value="' . esc_attr($fecha_realizacion) . '"></label></p>';
     echo '<p><label><strong>Fecha de Expiración:</strong><br><input type="date" name="certificado_grupal_fecha_expiracion" value="' . esc_attr($fecha_expiracion) . '"></label></p>';
-    echo '<p><label><strong>O.C. Cliente:</strong><br><input type="text" name="certificado_grupal_oc_cliente" value="' . esc_attr($oc_cliente) . '" style="width:100%;"></label></p>';
+    echo '<p><label><strong>Cliente:</strong><br><input type="text" name="certificado_grupal_oc_cliente" value="' . esc_attr($oc_cliente) . '" style="width:100%;"></label></p>';
     echo '</div>';
 
     echo '<div class="zc-admin-section">';
@@ -2108,7 +2116,7 @@ function zc_grupal_generar_pdf_manual($post_id, $post) {
             <td>$fecha_expiracion</td>
         </tr>
         <tr>
-            <td style="background-color:#e0e0e0;"><b>O.C. Cliente</b></td>
+            <td style="background-color:#e0e0e0;"><b>Cliente</b></td>
             <td>$oc_cliente</td>
         </tr>
     </table>
@@ -2192,8 +2200,8 @@ EOD;
     $firma_instructor_url = get_post_meta($post_id, '_certificado_grupal_firma_instructor_url', true);
     
     // Firmas predeterminadas
-    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png';
-    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png';
+    $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director-final.png';
+    $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-relator-final.png';
     
     // Usar firma personalizada o predeterminada
     $firma_director_final = !empty($firma_director_url) ? $firma_director_url : $firma_director_default;
@@ -2523,8 +2531,8 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $firma_instructor_url = get_post_meta($post_id_grupal, '_certificado_grupal_firma_instructor_url', true);
         
         // Firmas predeterminadas  
-        $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-Director.png';
-        $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/Firma-relator.png';
+        $firma_director_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-director-final.png';
+        $firma_instructor_default = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/firma-relator-final.png';
         
         // Usar firma personalizada o predeterminada
         $firma_director_final = !empty($firma_director_url) ? $firma_director_url : $firma_director_default;
