@@ -94,6 +94,21 @@ function zc_final_mostrar_campos_html($post) {
 
     echo '<p><label><strong>Nombre del Participante (para diploma individual):</strong><br><input type="text" name="certificado_participante" value="' . esc_attr($participante) . '" style="width:100%;"></label></p>';
     echo '<div class="zc-info-box"><h3>Información</h3>Este nombre se usará para generar el diploma individual. Si el certificado es solo para la empresa, puede dejarlo vacío.</div>';
+    
+    // 🎓 CAMPOS ESPECÍFICOS PARA EL DIPLOMA DEL PARTICIPANTE
+    $participante_rut = get_post_meta($post->ID, '_certificado_participante_rut', true);
+    $participante_asistencia = get_post_meta($post->ID, '_certificado_participante_asistencia', true);
+    $participante_nota_final = get_post_meta($post->ID, '_certificado_participante_nota_final', true);
+    $participante_aprobacion = get_post_meta($post->ID, '_certificado_participante_aprobacion', true);
+    
+    echo '<h3 class="diploma-data">📋 Datos del Diploma</h3>';
+    echo '<div class="zc-diploma-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">';
+    echo '<p><label><strong>RUT del Participante:</strong><br><input type="text" name="certificado_participante_rut" value="' . esc_attr($participante_rut) . '" style="width:100%;" placeholder="12.345.678-9"></label></p>';
+    echo '<p><label><strong>Asistencia:</strong><br><input type="text" name="certificado_participante_asistencia" value="' . esc_attr($participante_asistencia) . '" style="width:100%;" placeholder="100%"></label></p>';
+    echo '<p><label><strong>Nota Final:</strong><br><input type="text" name="certificado_participante_nota_final" value="' . esc_attr($participante_nota_final) . '" style="width:100%;" placeholder="7.0"></label></p>';
+    echo '<p><label><strong>Estado de Aprobación:</strong><br><input type="text" name="certificado_participante_aprobacion" value="' . esc_attr($participante_aprobacion) . '" style="width:100%;" placeholder="Aprobado"></label></p>';
+    echo '</div>';
+    echo '<div class="zc-info-box"><h3>💡 Nota</h3>Estos datos aparecerán en el diploma del participante. Si están vacíos, se usarán valores por defecto (100%, 7.0, Aprobado).</div>';
     echo '</div>';
 
     echo '<div class="zc-admin-section">';
@@ -150,6 +165,147 @@ function zc_final_guardar_datos($post_id, $post) {
     // 🔧 NUEVOS CAMPOS PARA FIRMAS PERSONALIZADAS
     if (isset($_POST['certificado_firma_director_url'])) update_post_meta($post_id, '_certificado_firma_director_url', esc_url_raw($_POST['certificado_firma_director_url']));
     if (isset($_POST['certificado_firma_instructor_url'])) update_post_meta($post_id, '_certificado_firma_instructor_url', esc_url_raw($_POST['certificado_firma_instructor_url']));
+    
+    // 🎓 CAMPOS ESPECÍFICOS PARA EL DIPLOMA DEL PARTICIPANTE
+    if (isset($_POST['certificado_participante_rut'])) update_post_meta($post_id, '_certificado_participante_rut', sanitize_text_field($_POST['certificado_participante_rut']));
+    if (isset($_POST['certificado_participante_asistencia'])) update_post_meta($post_id, '_certificado_participante_asistencia', sanitize_text_field($_POST['certificado_participante_asistencia']));
+    if (isset($_POST['certificado_participante_nota_final'])) update_post_meta($post_id, '_certificado_participante_nota_final', sanitize_text_field($_POST['certificado_participante_nota_final']));
+    if (isset($_POST['certificado_participante_aprobacion'])) update_post_meta($post_id, '_certificado_participante_aprobacion', sanitize_text_field($_POST['certificado_participante_aprobacion']));
+    
+    // 🔄 SINCRONIZACIÓN INDIVIDUAL → GRUPAL: Si este certificado proviene de un grupo, sincronizar datos comunes
+    $post_id_grupal = get_post_meta($post_id, '_certificado_origen_grupal', true);
+    if (!empty($post_id_grupal)) {
+        zc_individual_sincronizar_certificado_grupal($post_id, $post_id_grupal);
+    }
+}
+
+function zc_individual_sincronizar_certificado_grupal($post_id_individual, $post_id_grupal) {
+    // 🛡️ Protección contra loops infinitos de sincronización
+    global $zc_sincronizando;
+    if (!empty($zc_sincronizando[$post_id_grupal])) {
+        return; // Ya se está sincronizando este certificado grupal
+    }
+    
+    // Verificar que el certificado grupal existe
+    if (!get_post($post_id_grupal)) {
+        return; // El certificado grupal no existe
+    }
+    
+    // Obtener datos del certificado individual que pueden afectar al grupal
+    $curso = get_post_meta($post_id_individual, '_certificado_curso', true);
+    $fecha = get_post_meta($post_id_individual, '_certificado_fecha', true);
+    $empresa = get_post_meta($post_id_individual, '_certificado_empresa', true);
+    $director = get_post_meta($post_id_individual, '_certificado_director', true);
+    $instructor = get_post_meta($post_id_individual, '_certificado_instructor', true);
+    $duracion = get_post_meta($post_id_individual, '_certificado_duracion', true);
+    $fecha_realizacion = get_post_meta($post_id_individual, '_certificado_fecha_realizacion', true);
+    $fecha_expiracion = get_post_meta($post_id_individual, '_certificado_fecha_expiracion', true);
+    $oc_cliente = get_post_meta($post_id_individual, '_certificado_oc_cliente', true);
+    
+    // Actualizar certificado grupal solo con datos comunes (no específicos del participante)
+    if (!empty($curso)) update_post_meta($post_id_grupal, '_certificado_grupal_curso', $curso);
+    if (!empty($fecha)) update_post_meta($post_id_grupal, '_certificado_grupal_fecha', $fecha);
+    if (!empty($empresa)) update_post_meta($post_id_grupal, '_certificado_grupal_empresa', $empresa);
+    if (!empty($director)) update_post_meta($post_id_grupal, '_certificado_grupal_director', $director);
+    if (!empty($instructor)) update_post_meta($post_id_grupal, '_certificado_grupal_instructor', $instructor);
+    if (!empty($duracion)) update_post_meta($post_id_grupal, '_certificado_grupal_duracion', $duracion);
+    if (!empty($fecha_realizacion)) update_post_meta($post_id_grupal, '_certificado_grupal_fecha_realizacion', $fecha_realizacion);
+    if (!empty($fecha_expiracion)) update_post_meta($post_id_grupal, '_certificado_grupal_fecha_expiracion', $fecha_expiracion);
+    if (!empty($oc_cliente)) update_post_meta($post_id_grupal, '_certificado_grupal_oc_cliente', $oc_cliente);
+    
+    // 🔄 ACTUALIZAR LISTA DE PARTICIPANTES EN EL CERTIFICADO GRUPAL
+    zc_grupal_actualizar_lista_participantes($post_id_grupal);
+    
+    // Regenerar PDF del certificado grupal con datos actualizados
+    $post_grupal = get_post($post_id_grupal);
+    if ($post_grupal) {
+        zc_grupal_generar_pdf_manual($post_id_grupal, $post_grupal);
+    }
+}
+
+function zc_grupal_actualizar_lista_participantes($post_id_grupal) {
+    // Buscar todos los certificados individuales de este grupo
+    $certificados_individuales = get_posts(array(
+        'post_type' => 'certificado',
+        'posts_per_page' => -1,
+        'meta_query' => array(
+            array(
+                'key' => '_certificado_origen_grupal',
+                'value' => $post_id_grupal,
+                'compare' => '='
+            )
+        ),
+        'orderby' => 'meta_value',
+        'meta_key' => '_certificado_codigo',
+        'order' => 'ASC'
+    ));
+
+    if (empty($certificados_individuales)) {
+        return; // No hay certificados individuales
+    }
+
+    // Reconstruir la lista de participantes basada en los certificados individuales actuales
+    $nueva_lista_participantes = array();
+    
+    foreach ($certificados_individuales as $cert_individual) {
+        $nombre = get_post_meta($cert_individual->ID, '_certificado_participante', true);
+        $rut = get_post_meta($cert_individual->ID, '_certificado_participante_rut', true) ?: '';
+        $asistencia = get_post_meta($cert_individual->ID, '_certificado_participante_asistencia', true) ?: '100%';
+        $nota_teorica = get_post_meta($cert_individual->ID, '_certificado_participante_nota_teorica', true) ?: '7.0';
+        $nota_practica = get_post_meta($cert_individual->ID, '_certificado_participante_nota_practica', true) ?: '7.0';
+        $nota_final = get_post_meta($cert_individual->ID, '_certificado_participante_nota_final', true) ?: '7.0';
+        $aprobacion = get_post_meta($cert_individual->ID, '_certificado_participante_aprobacion', true) ?: 'Aprobado';
+        
+        // Crear línea en formato CSV
+        if (!empty($nombre)) {
+            $linea_participante = sprintf(
+                '%s,%s,%s,%s,%s,%s,%s',
+                $nombre,
+                $rut,
+                $asistencia,
+                $nota_teorica,
+                $nota_practica,
+                $nota_final,
+                $aprobacion
+            );
+            $nueva_lista_participantes[] = $linea_participante;
+        }
+    }
+    
+    // Actualizar la lista de participantes en el certificado grupal
+    $lista_actualizada = implode("\n", $nueva_lista_participantes);
+    update_post_meta($post_id_grupal, '_certificado_grupal_listado_participantes', $lista_actualizada);
+}
+
+// =============================================================================
+// PARTE 2.5: LIMPIEZA AUTOMÁTICA DE CERTIFICADOS INDIVIDUALES
+// =============================================================================
+
+// Limpiar certificados individuales cuando se elimina un certificado grupal
+add_action('before_delete_post', 'zc_grupal_limpiar_certificados_individuales');
+function zc_grupal_limpiar_certificados_individuales($post_id) {
+    // Solo aplicar a certificados grupales
+    if (get_post_type($post_id) !== 'certificado_grupal') {
+        return;
+    }
+    
+    // Buscar y eliminar todos los certificados individuales de este grupo
+    $certificados_individuales = get_posts(array(
+        'post_type' => 'certificado',
+        'posts_per_page' => -1,
+        'meta_query' => array(
+            array(
+                'key' => '_certificado_origen_grupal',
+                'value' => $post_id,
+                'compare' => '='
+            )
+        )
+    ));
+    
+    foreach ($certificados_individuales as $cert_individual) {
+        // Eliminar certificado individual (esto también eliminará sus meta automáticamente)
+        wp_delete_post($cert_individual->ID, true);
+    }
 }
 
 // =============================================================================
@@ -640,6 +796,27 @@ function zc_final_funcion_verificadora() {
                             'order' => 'ASC'
                         ));
                         
+                        // 🔧 Si no hay certificados individuales, generarlos automáticamente
+                        if (empty($certificados_individuales)) {
+                            zc_grupal_procesar_participantes(get_the_ID());
+                            
+                            // Volver a buscar después de generar
+                            $certificados_individuales = get_posts(array(
+                                'post_type' => 'certificado',
+                                'posts_per_page' => -1,
+                                'meta_query' => array(
+                                    array(
+                                        'key' => '_certificado_origen_grupal',
+                                        'value' => get_the_ID(),
+                                        'compare' => '='
+                                    )
+                                ),
+                                'orderby' => 'meta_value',
+                                'meta_key' => '_certificado_codigo',
+                                'order' => 'ASC'
+                            ));
+                        }
+                        
                         if (!empty($certificados_individuales)): ?>
                             <div class="zc-certificados-individuales" style="margin-top: 30px;">
                                 <h3>📋 Certificados Individuales de los Participantes</h3>
@@ -1124,12 +1301,19 @@ function zc_final_generar_diploma($post_id, $post) {
     $pdf->MultiCell(0, 12, $curso, 0, 'C');
     $pdf->Ln(8);
     
-    // Información adicional del diploma
+    // 🎯 INFORMACIÓN DINÁMICA DEL DIPLOMA BASADA EN DATOS DEL PARTICIPANTE
     $pdf->SetFont($font, '', 11);
     $pdf->SetTextColor(80, 80, 80);
-    $pdf->Cell(0, 8, 'Duración: 40 horas académicas', 0, 1, 'C');
-    $pdf->Cell(0, 8, 'Asistencia: 100%', 0, 1, 'C');
-    $pdf->Cell(0, 8, 'Nota Final: 7.0 (Aprobado)', 0, 1, 'C');
+    
+    // Obtener datos específicos del participante para el diploma
+    $duracion_participante = get_post_meta($post_id, '_certificado_duracion', true) ?: '40 horas académicas';
+    $asistencia_participante = get_post_meta($post_id, '_certificado_participante_asistencia', true) ?: '100%';
+    $nota_final_participante = get_post_meta($post_id, '_certificado_participante_nota_final', true) ?: '7.0';
+    $aprobacion_participante = get_post_meta($post_id, '_certificado_participante_aprobacion', true) ?: 'Aprobado';
+    
+    $pdf->Cell(0, 8, 'Duración: ' . $duracion_participante, 0, 1, 'C');
+    $pdf->Cell(0, 8, 'Asistencia: ' . $asistencia_participante, 0, 1, 'C');
+    $pdf->Cell(0, 8, 'Nota Final: ' . $nota_final_participante . ' (' . $aprobacion_participante . ')', 0, 1, 'C');
     $pdf->Ln(8);
 
     // --- SECCIÓN DE FIRMAS CON IMAGEN PNG (CENTRADO HORIZONTAL) ---
@@ -1629,7 +1813,16 @@ function zc_get_admin_css() {
     .zc-admin-section h3.datos-generales:before { content: "\\f1c0"; }
     .zc-admin-section h3.datos-curso:before { content: "\\f19d"; }
     .zc-admin-section h3.participantes:before { content: "\\f0c0"; }
+    .zc-admin-section h3.diploma-data:before { content: "\\f19d"; }
     .zc-admin-section h3.firmas:before { content: "\\f304"; }
+    
+    /* Grid para campos del diploma */
+    .zc-diploma-fields {
+        background: #f8fafc;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+    }
     
     /* Inputs modernos */
     .zc-admin-section input[type="text"],
@@ -1948,7 +2141,88 @@ function zc_grupal_guardar_datos($post_id, $post) {
         
         // Generar PDF del certificado grupal después de procesar participantes
         zc_grupal_generar_pdf_manual($post_id, $post);
+        
+        // 🔄 SINCRONIZACIÓN: Actualizar certificados individuales existentes con nuevos datos
+        zc_grupal_sincronizar_certificados_individuales($post_id);
     }
+}
+
+// =============================================================================
+// PARTE 10.5: FUNCIÓN DE SINCRONIZACIÓN CERTIFICADOS GRUPALES ↔ INDIVIDUALES
+// =============================================================================
+
+function zc_grupal_sincronizar_certificados_individuales($post_id_grupal) {
+    // 🛡️ Protección contra loops infinitos de sincronización
+    global $zc_sincronizando;
+    if (!empty($zc_sincronizando[$post_id_grupal])) {
+        return; // Ya se está sincronizando este certificado
+    }
+    $zc_sincronizando[$post_id_grupal] = true;
+    
+    // Buscar todos los certificados individuales existentes de este grupo
+    $certificados_individuales = get_posts(array(
+        'post_type' => 'certificado',
+        'posts_per_page' => -1,
+        'meta_query' => array(
+            array(
+                'key' => '_certificado_origen_grupal',
+                'value' => $post_id_grupal,
+                'compare' => '='
+            )
+        )
+    ));
+
+    if (empty($certificados_individuales)) {
+        return; // No hay certificados individuales que sincronizar
+    }
+
+    // Obtener datos actualizados del certificado grupal
+    $curso = get_post_meta($post_id_grupal, '_certificado_grupal_curso', true);
+    $fecha = get_post_meta($post_id_grupal, '_certificado_grupal_fecha', true);
+    $empresa = get_post_meta($post_id_grupal, '_certificado_grupal_empresa', true);
+    $director = get_post_meta($post_id_grupal, '_certificado_grupal_director', true);
+    $instructor = get_post_meta($post_id_grupal, '_certificado_grupal_instructor', true);
+    $duracion = get_post_meta($post_id_grupal, '_certificado_grupal_duracion', true);
+    $fecha_realizacion = get_post_meta($post_id_grupal, '_certificado_grupal_fecha_realizacion', true);
+    $fecha_expiracion = get_post_meta($post_id_grupal, '_certificado_grupal_fecha_expiracion', true);
+    $oc_cliente = get_post_meta($post_id_grupal, '_certificado_grupal_oc_cliente', true);
+    $firma_director_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_firma_director_url', true);
+    $firma_instructor_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_firma_instructor_url', true);
+
+    // Actualizar cada certificado individual con los datos del grupal
+    foreach ($certificados_individuales as $certificado_individual) {
+        $post_id_individual = $certificado_individual->ID;
+        
+        // Actualizar datos comunes (mantener datos específicos del participante)
+        update_post_meta($post_id_individual, '_certificado_curso', $curso);
+        update_post_meta($post_id_individual, '_certificado_fecha', $fecha);
+        update_post_meta($post_id_individual, '_certificado_empresa', $empresa);
+        update_post_meta($post_id_individual, '_certificado_director', $director);
+        update_post_meta($post_id_individual, '_certificado_instructor', $instructor);
+        update_post_meta($post_id_individual, '_certificado_duracion', $duracion);
+        update_post_meta($post_id_individual, '_certificado_fecha_realizacion', $fecha_realizacion);
+        update_post_meta($post_id_individual, '_certificado_fecha_expiracion', $fecha_expiracion);
+        update_post_meta($post_id_individual, '_certificado_oc_cliente', $oc_cliente);
+        
+        // Actualizar URLs de firmas si están especificadas
+        if (!empty($firma_director_grupal)) {
+            update_post_meta($post_id_individual, '_certificado_firma_director_url', $firma_director_grupal);
+        }
+        if (!empty($firma_instructor_grupal)) {
+            update_post_meta($post_id_individual, '_certificado_firma_instructor_url', $firma_instructor_grupal);
+        }
+        
+        // Regenerar PDFs del certificado individual con datos actualizados
+        $post_object = get_post($post_id_individual);
+        if ($post_object) {
+            zc_final_generar_pdf($post_id_individual, $post_object);
+            zc_final_generar_diploma($post_id_individual, $post_object);
+        }
+    }
+    
+    // 🛡️ Limpiar protección de sincronización
+    global $zc_sincronizando;
+    unset($zc_sincronizando[$post_id_grupal]);
 }
 
 // =============================================================================
@@ -1980,13 +2254,26 @@ function zc_grupal_procesar_participantes($post_id_grupal) {
         $participante_line = trim($participante_line);
         if (empty($participante_line)) continue;
 
-        // Extraer datos del participante - mejorar procesamiento
-        // Si la línea tiene comas, usar CSV; si no, tomar toda la línea como nombre
+        // Extraer datos del participante - formato: Nombre,RUT,Asistencia,Nota T.,Nota S.,Nota Final,Aprobación
+        $nombre_participante = '';
+        $rut_participante = '';
+        $asistencia_participante = '100%';
+        $nota_teorica = '7.0';
+        $nota_practica = '7.0';
+        $nota_final = '7.0';
+        $aprobacion = 'Aprobado';
+        
         if (strpos($participante_line, ',') !== false) {
             $partes = str_getcsv($participante_line, ',');
             $nombre_participante = trim($partes[0] ?? '');
+            $rut_participante = trim($partes[1] ?? '');
+            $asistencia_participante = trim($partes[2] ?? '100%');
+            $nota_teorica = trim($partes[3] ?? '7.0');
+            $nota_practica = trim($partes[4] ?? '7.0');
+            $nota_final = trim($partes[5] ?? '7.0');
+            $aprobacion = trim($partes[6] ?? 'Aprobado');
         } else {
-            // Si no hay comas, toda la línea es el nombre del participante
+            // Si no hay comas, toda la línea es el nombre del participante (usar valores por defecto)
             $nombre_participante = trim($participante_line);
         }
         
@@ -2040,6 +2327,14 @@ function zc_grupal_procesar_participantes($post_id_grupal) {
             update_post_meta($post_id_individual, '_certificado_fecha_realizacion', $fecha_realizacion);
             update_post_meta($post_id_individual, '_certificado_fecha_expiracion', $fecha_expiracion);
             update_post_meta($post_id_individual, '_certificado_oc_cliente', $oc_cliente);
+            
+            // 🎯 GUARDAR DATOS ESPECÍFICOS DEL PARTICIPANTE PARA EL DIPLOMA
+            update_post_meta($post_id_individual, '_certificado_participante_rut', $rut_participante);
+            update_post_meta($post_id_individual, '_certificado_participante_asistencia', $asistencia_participante);
+            update_post_meta($post_id_individual, '_certificado_participante_nota_teorica', $nota_teorica);
+            update_post_meta($post_id_individual, '_certificado_participante_nota_practica', $nota_practica);
+            update_post_meta($post_id_individual, '_certificado_participante_nota_final', $nota_final);
+            update_post_meta($post_id_individual, '_certificado_participante_aprobacion', $aprobacion);
             
             // Para el certificado individual, solo una línea de participante
             update_post_meta($post_id_individual, '_certificado_listado_participantes', $participante_line);
@@ -2510,7 +2805,29 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
     ));
     
     if (empty($certificados_individuales)) {
-        return '';
+        // 🔧 Si no existen certificados individuales, generarlos automáticamente
+        zc_grupal_procesar_participantes($post_id_grupal);
+        
+        // Volver a buscar después de generar
+        $certificados_individuales = get_posts(array(
+            'post_type' => 'certificado',
+            'posts_per_page' => -1,
+            'meta_query' => array(
+                array(
+                    'key' => '_certificado_origen_grupal',
+                    'value' => $post_id_grupal,
+                    'compare' => '='
+                )
+            ),
+            'orderby' => 'meta_value',
+            'meta_key' => '_certificado_codigo',
+            'order' => 'ASC'
+        ));
+        
+        // Si aún no hay certificados después de generar, retornar vacío
+        if (empty($certificados_individuales)) {
+            return '';
+        }
     }
     
     // Crear PDF compilado con todos los diplomas
@@ -2592,12 +2909,19 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $pdf->MultiCell(0, 12, $curso_individual, 0, 'C');
         $pdf->Ln(8);
         
-        // 🎓 AÑADIR LÍNEAS ADICIONALES DEL DIPLOMA (duración, asistencia, nota final)
+        // 🎓 LÍNEAS DINÁMICAS DEL DIPLOMA BASADAS EN DATOS REALES DEL PARTICIPANTE
         $pdf->SetFont($font, '', 11);
         $pdf->SetTextColor(80, 80, 80);
-        $pdf->Cell(0, 6, 'Duración: 40 horas académicas', 0, 1, 'C');
-        $pdf->Cell(0, 6, 'Asistencia: 100%', 0, 1, 'C');
-        $pdf->Cell(0, 6, 'Nota Final: 7.0 (Aprobado)', 0, 1, 'C');
+        
+        // Obtener datos específicos de este participante individual
+        $duracion_individual = get_post_meta($post_id_individual, '_certificado_duracion', true) ?: '40 horas académicas';
+        $asistencia_individual = get_post_meta($post_id_individual, '_certificado_participante_asistencia', true) ?: '100%';
+        $nota_final_individual = get_post_meta($post_id_individual, '_certificado_participante_nota_final', true) ?: '7.0';
+        $aprobacion_individual = get_post_meta($post_id_individual, '_certificado_participante_aprobacion', true) ?: 'Aprobado';
+        
+        $pdf->Cell(0, 6, 'Duración: ' . $duracion_individual, 0, 1, 'C');
+        $pdf->Cell(0, 6, 'Asistencia: ' . $asistencia_individual, 0, 1, 'C');
+        $pdf->Cell(0, 6, 'Nota Final: ' . $nota_final_individual . ' (' . $aprobacion_individual . ')', 0, 1, 'C');
         $pdf->Ln(10);
         
         // Firmas con PNG personalizables
