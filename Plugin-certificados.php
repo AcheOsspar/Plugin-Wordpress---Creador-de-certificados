@@ -65,6 +65,9 @@ function zc_final_mostrar_campos_html($post) {
     $firma_director_url = get_post_meta($post->ID, '_certificado_firma_director_url', true);
     $firma_instructor_url = get_post_meta($post->ID, '_certificado_firma_instructor_url', true);
     
+    // 📚 NUEVO CAMPO PARA TEMARIO DEL CURSO
+    $temario_url = get_post_meta($post->ID, '_certificado_temario_url', true);
+    
     wp_nonce_field('zc_final_guardar_datos', 'zc_final_nonce');
 
     // Se mantiene el campo de participante individual, que ahora puede ser opcional o usarse para el diploma
@@ -132,6 +135,20 @@ function zc_final_mostrar_campos_html($post) {
     echo '• <strong>Tamaño recomendado:</strong> 400x200 píxeles, fondo transparente PNG';
     echo '</div>';
     
+    // 📚 SECCIÓN DE TEMARIO DEL CURSO
+    echo '<div class="zc-admin-section">';
+    echo '<h3>📚 Temario del Curso (Opcional)</h3>';
+    echo '<p>Sube el PDF del temario a WordPress y copia aquí la URL. Aparecerá un botón "Ver Temario" en el verificador.</p>';
+    echo '<p><label><strong>URL del Temario (PDF):</strong><br><input type="url" name="certificado_temario_url" value="' . esc_attr($temario_url) . '" style="width:100%;" placeholder="https://validador.zenactivospa.cl/wp-content/uploads/2025/09/temario-curso-xyz.pdf"></label></p>';
+    echo '<div class="zc-info-box">';
+    echo '<strong>💡 Cómo subir el temario:</strong><br>';
+    echo '1. Ve a <strong>Medios → Añadir nuevo</strong><br>';
+    echo '2. Sube tu archivo PDF del temario<br>';
+    echo '3. Copia la URL del archivo y pégala arriba<br>';
+    echo '4. Los visitantes verán un botón "📚 Ver Temario del Curso" en el verificador';
+    echo '</div>';
+    echo '</div>';
+    
     echo '</div>';
     
     echo '<div class="zc-url-section">';
@@ -165,6 +182,9 @@ function zc_final_guardar_datos($post_id, $post) {
     // 🔧 NUEVOS CAMPOS PARA FIRMAS PERSONALIZADAS
     if (isset($_POST['certificado_firma_director_url'])) update_post_meta($post_id, '_certificado_firma_director_url', esc_url_raw($_POST['certificado_firma_director_url']));
     if (isset($_POST['certificado_firma_instructor_url'])) update_post_meta($post_id, '_certificado_firma_instructor_url', esc_url_raw($_POST['certificado_firma_instructor_url']));
+    
+    // 📚 Guardar URL del temario
+    if (isset($_POST['certificado_temario_url'])) update_post_meta($post_id, '_certificado_temario_url', esc_url_raw($_POST['certificado_temario_url']));
     
     // 🎓 CAMPOS ESPECÍFICOS PARA EL DIPLOMA DEL PARTICIPANTE
     if (isset($_POST['certificado_participante_rut'])) update_post_meta($post_id, '_certificado_participante_rut', sanitize_text_field($_POST['certificado_participante_rut']));
@@ -201,6 +221,7 @@ function zc_individual_sincronizar_certificado_grupal($post_id_individual, $post
     $fecha_realizacion = get_post_meta($post_id_individual, '_certificado_fecha_realizacion', true);
     $fecha_expiracion = get_post_meta($post_id_individual, '_certificado_fecha_expiracion', true);
     $oc_cliente = get_post_meta($post_id_individual, '_certificado_oc_cliente', true);
+    $temario_individual = get_post_meta($post_id_individual, '_certificado_temario_url', true);
     
     // Actualizar certificado grupal solo con datos comunes (no específicos del participante)
     if (!empty($curso)) update_post_meta($post_id_grupal, '_certificado_grupal_curso', $curso);
@@ -212,6 +233,9 @@ function zc_individual_sincronizar_certificado_grupal($post_id_individual, $post
     if (!empty($fecha_realizacion)) update_post_meta($post_id_grupal, '_certificado_grupal_fecha_realizacion', $fecha_realizacion);
     if (!empty($fecha_expiracion)) update_post_meta($post_id_grupal, '_certificado_grupal_fecha_expiracion', $fecha_expiracion);
     if (!empty($oc_cliente)) update_post_meta($post_id_grupal, '_certificado_grupal_oc_cliente', $oc_cliente);
+    
+    // 📚 Sincronizar temario si está especificado
+    if (!empty($temario_individual)) update_post_meta($post_id_grupal, '_certificado_grupal_temario_url', $temario_individual);
     
     // 🔄 ACTUALIZAR LISTA DE PARTICIPANTES EN EL CERTIFICADO GRUPAL
     zc_grupal_actualizar_lista_participantes($post_id_grupal);
@@ -705,6 +729,15 @@ function zc_final_funcion_verificadora() {
                                     Descargar Diploma
                                 </a>
                             <?php endif; ?>
+                            
+                            <?php 
+                            // 📚 Botón de temario si existe URL
+                            $temario_individual = get_post_meta(get_the_ID(), '_certificado_temario_url', true);
+                            if (!empty($temario_individual)): ?>
+                                <a href="<?php echo esc_url($temario_individual); ?>" target="_blank" class="zc-btn-descargar zc-btn-temario" style="background-color: #28a745; border-color: #28a745;">
+                                    📚 Ver Temario del Curso
+                                </a>
+                            <?php endif; ?>
                         </div>
                         
                         <?php if (!empty($pdf_url)): ?>
@@ -769,6 +802,15 @@ function zc_final_funcion_verificadora() {
                                 <?php if (!empty($diplomas_url)): ?>
                                     <a href="<?php echo esc_url($diplomas_url); ?>" target="_blank" class="zc-btn-descargar zc-btn-diploma">
                                         Ver Diplomas del Grupo
+                                    </a>
+                                <?php endif; ?>
+                                
+                                <?php 
+                                // 📚 Botón de temario grupal si existe URL
+                                $temario_grupal = get_post_meta(get_the_ID(), '_certificado_grupal_temario_url', true);
+                                if (!empty($temario_grupal)): ?>
+                                    <a href="<?php echo esc_url($temario_grupal); ?>" target="_blank" class="zc-btn-descargar zc-btn-temario" style="background-color: #28a745; border-color: #28a745;">
+                                        📚 Ver Temario del Curso
                                     </a>
                                 <?php endif; ?>
                             </div>
@@ -2090,6 +2132,9 @@ function zc_grupal_mostrar_campos_html($post) {
     $firma_director_url = get_post_meta($post->ID, '_certificado_grupal_firma_director_url', true);
     $firma_instructor_url = get_post_meta($post->ID, '_certificado_grupal_firma_instructor_url', true);
     
+    // 📚 Campo para temario del curso grupal
+    $temario_grupal_url = get_post_meta($post->ID, '_certificado_grupal_temario_url', true);
+    
     echo '<hr style="margin: 15px 0;">';
     echo '<h4>🖼️ Firmas Personalizadas (PNG)</h4>';
     echo '<p style="color: #666;">Si no se especifican URLs, se usarán las firmas predeterminadas del sistema.</p>';
@@ -2097,6 +2142,13 @@ function zc_grupal_mostrar_campos_html($post) {
     echo '<input type="url" name="certificado_grupal_firma_director_url" value="' . esc_attr($firma_director_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-director.png"></label></p>';
     echo '<p><label><strong>URL Firma Relator (PNG):</strong><br>';
     echo '<input type="url" name="certificado_grupal_firma_instructor_url" value="' . esc_attr($firma_instructor_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-relator.png"></label></p>';
+    
+    // 📚 Sección de temario para grupales
+    echo '<hr style="margin: 15px 0;">';
+    echo '<h4>📚 Temario del Curso (Opcional)</h4>';
+    echo '<p style="color: #666;">URL del PDF del temario. Aparecerá un botón "Ver Temario" en el verificador grupal.</p>';
+    echo '<p><label><strong>URL del Temario (PDF):</strong><br>';
+    echo '<input type="url" name="certificado_grupal_temario_url" value="' . esc_attr($temario_grupal_url) . '" style="width:100%;" placeholder="https://validador.zenactivospa.cl/wp-content/uploads/2025/09/temario-curso-xyz.pdf"></label></p>';
     echo '</div>';
     
     echo '<div class="zc-url-section">';
@@ -2133,6 +2185,11 @@ function zc_grupal_guardar_datos($post_id, $post) {
     }
     if (isset($_POST['certificado_grupal_firma_instructor_url'])) {
         update_post_meta($post_id, '_certificado_grupal_firma_instructor_url', esc_url_raw($_POST['certificado_grupal_firma_instructor_url']));
+    }
+    
+    // 📚 Guardar URL del temario grupal
+    if (isset($_POST['certificado_grupal_temario_url'])) {
+        update_post_meta($post_id, '_certificado_grupal_temario_url', esc_url_raw($_POST['certificado_grupal_temario_url']));
     }
 
     // 🎯 MAGIA: Auto-generar certificados individuales solo si está publicado
@@ -2188,6 +2245,7 @@ function zc_grupal_sincronizar_certificados_individuales($post_id_grupal) {
     $oc_cliente = get_post_meta($post_id_grupal, '_certificado_grupal_oc_cliente', true);
     $firma_director_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_firma_director_url', true);
     $firma_instructor_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_firma_instructor_url', true);
+    $temario_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_temario_url', true);
 
     // Actualizar cada certificado individual con los datos del grupal
     foreach ($certificados_individuales as $certificado_individual) {
@@ -2210,6 +2268,11 @@ function zc_grupal_sincronizar_certificados_individuales($post_id_grupal) {
         }
         if (!empty($firma_instructor_grupal)) {
             update_post_meta($post_id_individual, '_certificado_firma_instructor_url', $firma_instructor_grupal);
+        }
+        
+        // 📚 Actualizar URL del temario si está especificado
+        if (!empty($temario_grupal)) {
+            update_post_meta($post_id_individual, '_certificado_temario_url', $temario_grupal);
         }
         
         // Regenerar PDFs del certificado individual con datos actualizados
@@ -2348,6 +2411,12 @@ function zc_grupal_procesar_participantes($post_id_grupal) {
             }
             if (!empty($firma_instructor_grupal)) {
                 update_post_meta($post_id_individual, '_certificado_firma_instructor_url', $firma_instructor_grupal);
+            }
+            
+            // 📚 COPIAR URL DEL TEMARIO DEL CERTIFICADO GRUPAL AL INDIVIDUAL
+            $temario_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_temario_url', true);
+            if (!empty($temario_grupal)) {
+                update_post_meta($post_id_individual, '_certificado_temario_url', $temario_grupal);
             }
 
             // Agregar metadato de referencia al certificado grupal
