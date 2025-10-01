@@ -1285,7 +1285,7 @@ function zc_final_generar_diploma($post_id, $post) {
         $pdf->SetFont($font, '', 11);
         $pdf->SetTextColor(80, 80, 80);
         // Se usa HTML para poder centrar el texto mixto (normal y negrita)
-        $empresa_html = 'Empresa o Particular: <b>' . esc_html($empresa) . '</b>';
+        $empresa_html = 'Cliente: <b>' . esc_html($empresa) . '</b>';
         $pdf->writeHTMLCell(0, 0, '', '', $empresa_html, 0, 1, 0, true, 'C', true);
         $pdf->Ln(8);
     }
@@ -2893,7 +2893,7 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         if (!empty($empresa_individual)) {
             $pdf->SetFont($font, '', 11);
             $pdf->SetTextColor(80, 80, 80);
-            $empresa_html = 'Empresa o Particular: <b>' . esc_html($empresa_individual) . '</b>';
+            $empresa_html = 'Cliente: <b>' . esc_html($empresa_individual) . '</b>';
             $pdf->writeHTMLCell(0, 0, '', '', $empresa_html, 0, 1, 0, true, 'C', true);
             $pdf->Ln(8);
         }
@@ -3166,4 +3166,400 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
 
 =============================================================================
 */
+
+// =============================================================================
+// REGENERADOR MASIVO DE PDFs - FUNCIONALIDAD SEGURA PARA ACTUALIZACIONES
+// =============================================================================
+
+// Agregar página de regeneración masiva de PDFs
+add_action('admin_menu', 'zc_agregar_pagina_regenerador');
+function zc_agregar_pagina_regenerador() {
+    add_submenu_page(
+        'edit.php?post_type=certificado',
+        'Regenerar todos los PDFs',
+        '🔄 Regenerar PDFs',
+        'manage_options',
+        'zc-regenerador-pdfs',
+        'zc_mostrar_pagina_regenerador'
+    );
+}
+
+// Mostrar la página del regenerador
+function zc_mostrar_pagina_regenerador() {
+    ?>
+    <div class="wrap">
+        <h1>🔄 Regenerar todos los PDFs</h1>
+        <div class="notice notice-info">
+            <p><strong>¿Para qué sirve esta herramienta?</strong></p>
+            <ul>
+                <li>✅ Aplica automáticamente las mejoras más recientes a todos los certificados existentes</li>
+                <li>✅ Actualiza textos (ej: "Empresa o Particular" → "Cliente")</li>
+                <li>✅ Actualiza firmas, formatos y otros cambios visuales</li>
+                <li>✅ Procesa de forma segura sin perder datos</li>
+            </ul>
+        </div>
+        
+        <div class="card" style="max-width: 600px;">
+            <h2>Regenerar Certificados y Diplomas</h2>
+            <p>Esta acción regenerará todos los PDFs (certificados y diplomas) con las configuraciones más recientes.</p>
+            
+            <div id="zc-regeneracion-progreso" style="display: none;">
+                <h3>🔄 Procesando...</h3>
+                <div style="background: #f0f0f0; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                    <div id="zc-barra-progreso" style="background: #0073aa; height: 20px; border-radius: 3px; width: 0%; transition: width 0.3s;"></div>
+                </div>
+                <div id="zc-estado-actual">Preparando...</div>
+                <div id="zc-log-regeneracion" style="max-height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ddd; padding: 10px; margin: 10px 0; font-family: monospace; font-size: 12px;"></div>
+            </div>
+            
+            <div id="zc-botones-regeneracion">
+                <button type="button" id="zc-btn-regenerar-individuales" class="button button-primary">
+                    🔄 Regenerar Certificados Individuales
+                </button>
+                <button type="button" id="zc-btn-regenerar-grupales" class="button button-primary" style="margin-left: 10px;">
+                    🔄 Regenerar Certificados Grupales
+                </button>
+                <br><br>
+                <button type="button" id="zc-btn-regenerar-todos" class="button button-hero button-primary">
+                    ⚡ Regenerar TODOS los PDFs
+                </button>
+            </div>
+            
+            <div id="zc-resultado-final" style="display: none;">
+                <h3>✅ Regeneración Completada</h3>
+                <div id="zc-resumen-resultados"></div>
+                <button type="button" onclick="location.reload()" class="button button-secondary">🔄 Regenerar más PDFs</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    jQuery(document).ready(function($) {
+        let procesandoActualmente = false;
+        
+        // Regenerar solo certificados individuales
+        $('#zc-btn-regenerar-individuales').click(function() {
+            if (procesandoActualmente) return;
+            if (confirm('¿Regenerar todos los certificados individuales? Esto puede tomar varios minutos.')) {
+                iniciarRegeneracion('individuales');
+            }
+        });
+        
+        // Regenerar solo certificados grupales
+        $('#zc-btn-regenerar-grupales').click(function() {
+            if (procesandoActualmente) return;
+            if (confirm('¿Regenerar todos los certificados grupales? Esto puede tomar varios minutos.')) {
+                iniciarRegeneracion('grupales');
+            }
+        });
+        
+        // Regenerar todos los PDFs
+        $('#zc-btn-regenerar-todos').click(function() {
+            if (procesandoActualmente) return;
+            if (confirm('¿Regenerar TODOS los PDFs (individuales y grupales)? Esto puede tomar bastante tiempo.')) {
+                iniciarRegeneracion('todos');
+            }
+        });
+        
+        function iniciarRegeneracion(tipo) {
+            procesandoActualmente = true;
+            $('#zc-botones-regeneracion').hide();
+            $('#zc-regeneracion-progreso').show();
+            $('#zc-resultado-final').hide();
+            $('#zc-estado-actual').text('Obteniendo lista de certificados...');
+            
+            // Primero obtener el conteo total
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                timeout: 30000, // 30 segundos timeout
+                data: {
+                    action: 'zc_contar_certificados',
+                    tipo: tipo,
+                    nonce: '<?php echo wp_create_nonce("zc_regenerar_pdfs"); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        procesarPorLotes(tipo, response.data.total, 0, {
+                            individuales: 0,
+                            diplomas_individuales: 0,
+                            grupales: 0,
+                            diplomas_grupales: 0,
+                            total: 0,
+                            errores: []
+                        });
+                    } else {
+                        alert('Error al obtener certificados: ' + response.data);
+                        resetearInterfaz();
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.log('Error:', xhr, status, error);
+                    alert('Error de conexión al obtener certificados. Revisa la consola para más detalles.');
+                    resetearInterfaz();
+                }
+            });
+        }
+        
+        function procesarPorLotes(tipo, totalCertificados, offset, resultadosAcumulados) {
+            const loteSize = 5; // Procesar de 5 en 5 para evitar timeouts
+            
+            $('#zc-estado-actual').text('Procesando lote ' + Math.floor(offset/loteSize + 1) + '...');
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                timeout: 60000, // 60 segundos por lote
+                data: {
+                    action: 'zc_regenerar_pdfs_lote',
+                    tipo: tipo,
+                    offset: offset,
+                    limit: loteSize,
+                    nonce: '<?php echo wp_create_nonce("zc_regenerar_pdfs"); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Acumular resultados
+                        resultadosAcumulados.individuales += response.data.individuales || 0;
+                        resultadosAcumulados.diplomas_individuales += response.data.diplomas_individuales || 0;
+                        resultadosAcumulados.grupales += response.data.grupales || 0;
+                        resultadosAcumulados.diplomas_grupales += response.data.diplomas_grupales || 0;
+                        resultadosAcumulados.total += response.data.total || 0;
+                        
+                        if (response.data.errores) {
+                            resultadosAcumulados.errores = resultadosAcumulados.errores.concat(response.data.errores);
+                        }
+                        
+                        // Actualizar progreso
+                        const progreso = Math.min(((offset + loteSize) / totalCertificados) * 100, 100);
+                        $('#zc-barra-progreso').css('width', progreso + '%');
+                        
+                        // Si hay más certificados, continuar con el siguiente lote
+                        if (offset + loteSize < totalCertificados) {
+                            setTimeout(() => {
+                                procesarPorLotes(tipo, totalCertificados, offset + loteSize, resultadosAcumulados);
+                            }, 1000); // Pausa de 1 segundo entre lotes
+                        } else {
+                            // Terminado
+                            mostrarResultadoFinal(resultadosAcumulados);
+                        }
+                    } else {
+                        alert('Error en lote: ' + response.data);
+                        mostrarResultadoFinal(resultadosAcumulados); // Mostrar resultados parciales
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.log('Error en lote:', xhr, status, error);
+                    resultadosAcumulados.errores.push('Error de conexión en lote ' + Math.floor(offset/loteSize + 1));
+                    
+                    // Intentar continuar con el siguiente lote
+                    if (offset + loteSize < totalCertificados) {
+                        setTimeout(() => {
+                            procesarPorLotes(tipo, totalCertificados, offset + loteSize, resultadosAcumulados);
+                        }, 2000); // Pausa más larga después de error
+                    } else {
+                        mostrarResultadoFinal(resultadosAcumulados);
+                    }
+                }
+            });
+        }
+        
+
+        
+        function mostrarResultadoFinal(resultados) {
+            procesandoActualmente = false;
+            $('#zc-regeneracion-progreso').hide();
+            $('#zc-resultado-final').show();
+            $('#zc-barra-progreso').css('width', '100%');
+            
+            let resumen = '<div style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px;">';
+            resumen += '<h4>📊 Resumen de regeneración:</h4>';
+            resumen += '<ul>';
+            resumen += '<li><strong>Certificados individuales:</strong> ' + (resultados.individuales || 0) + ' regenerados</li>';
+            resumen += '<li><strong>Diplomas individuales:</strong> ' + (resultados.diplomas_individuales || 0) + ' regenerados</li>';
+            resumen += '<li><strong>Certificados grupales:</strong> ' + (resultados.grupales || 0) + ' regenerados</li>';
+            resumen += '<li><strong>Diplomas grupales:</strong> ' + (resultados.diplomas_grupales || 0) + ' regenerados</li>';
+            resumen += '<li><strong>Total PDFs actualizados:</strong> ' + (resultados.total || 0) + '</li>';
+            resumen += '</ul>';
+            if (resultados.errores && resultados.errores.length > 0) {
+                resumen += '<h4 style="color: #dc3545;">⚠️ Errores encontrados:</h4>';
+                resumen += '<ul>';
+                resultados.errores.forEach(function(error) {
+                    resumen += '<li style="color: #dc3545;">' + error + '</li>';
+                });
+                resumen += '</ul>';
+            }
+            resumen += '</div>';
+            
+            $('#zc-resumen-resultados').html(resumen);
+        }
+        
+        function resetearInterfaz() {
+            procesandoActualmente = false;
+            $('#zc-botones-regeneracion').show();
+            $('#zc-regeneracion-progreso').hide();
+            $('#zc-resultado-final').hide();
+        }
+    });
+    </script>
+    <?php
+}
+
+// AJAX handler para contar certificados
+add_action('wp_ajax_zc_contar_certificados', 'zc_contar_certificados_ajax');
+function zc_contar_certificados_ajax() {
+    // Verificar nonce de seguridad
+    if (!wp_verify_nonce($_POST['nonce'], 'zc_regenerar_pdfs')) {
+        wp_send_json_error('Token de seguridad inválido');
+    }
+    
+    // Verificar permisos
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Sin permisos suficientes');
+    }
+    
+    $tipo = sanitize_text_field($_POST['tipo']);
+    $total = 0;
+    
+    if ($tipo === 'individuales' || $tipo === 'todos') {
+        $individuales = get_posts(array(
+            'post_type' => 'certificado',
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+            'fields' => 'ids'
+        ));
+        $total += count($individuales);
+    }
+    
+    if ($tipo === 'grupales' || $tipo === 'todos') {
+        $grupales = get_posts(array(
+            'post_type' => 'certificado_grupal',
+            'posts_per_page' => -1,
+            'post_status' => 'publish',
+            'fields' => 'ids'
+        ));
+        $total += count($grupales);
+    }
+    
+    wp_send_json_success(array('total' => $total));
+}
+
+// AJAX handler para regeneración por lotes
+add_action('wp_ajax_zc_regenerar_pdfs_lote', 'zc_procesar_regeneracion_lote');
+function zc_procesar_regeneracion_lote() {
+    // Verificar nonce de seguridad
+    if (!wp_verify_nonce($_POST['nonce'], 'zc_regenerar_pdfs')) {
+        wp_send_json_error('Token de seguridad inválido');
+    }
+    
+    // Verificar permisos
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Sin permisos suficientes');
+    }
+    
+    $tipo = sanitize_text_field($_POST['tipo']);
+    $offset = intval($_POST['offset']);
+    $limit = intval($_POST['limit']);
+    
+    $resultados = array(
+        'individuales' => 0,
+        'diplomas_individuales' => 0,
+        'grupales' => 0,
+        'diplomas_grupales' => 0,
+        'total' => 0,
+        'errores' => array()
+    );
+    
+    // Aumentar límites de tiempo y memoria
+    set_time_limit(120); // 2 minutos por lote
+    ini_set('memory_limit', '256M');
+    
+    try {
+        if ($tipo === 'individuales' || $tipo === 'todos') {
+            $resultados_individuales = zc_regenerar_certificados_individuales_lote($offset, $limit);
+            $resultados['individuales'] = $resultados_individuales['certificados'];
+            $resultados['diplomas_individuales'] = $resultados_individuales['diplomas'];
+            if (!empty($resultados_individuales['errores'])) {
+                $resultados['errores'] = array_merge($resultados['errores'], $resultados_individuales['errores']);
+            }
+        }
+        
+        if ($tipo === 'grupales' || $tipo === 'todos') {
+            $resultados_grupales = zc_regenerar_certificados_grupales_lote($offset, $limit);
+            $resultados['grupales'] = $resultados_grupales['certificados'];
+            $resultados['diplomas_grupales'] = $resultados_grupales['diplomas'];
+            if (!empty($resultados_grupales['errores'])) {
+                $resultados['errores'] = array_merge($resultados['errores'], $resultados_grupales['errores']);
+            }
+        }
+        
+        $resultados['total'] = $resultados['individuales'] + $resultados['diplomas_individuales'] + 
+                              $resultados['grupales'] + $resultados['diplomas_grupales'];
+        
+        wp_send_json_success($resultados);
+        
+    } catch (Exception $e) {
+        wp_send_json_error('Error durante la regeneración: ' . $e->getMessage());
+    }
+}
+
+// Regenerar certificados individuales por lotes
+function zc_regenerar_certificados_individuales_lote($offset, $limit) {
+    $resultados = array('certificados' => 0, 'diplomas' => 0, 'errores' => array());
+    
+    // Obtener certificados individuales del lote actual
+    $certificados = get_posts(array(
+        'post_type' => 'certificado',
+        'posts_per_page' => $limit,
+        'offset' => $offset,
+        'post_status' => 'publish'
+    ));
+    
+    foreach ($certificados as $certificado) {
+        try {
+            // Regenerar certificado PDF
+            zc_final_generar_pdf($certificado->ID, $certificado);
+            $resultados['certificados']++;
+            
+            // Regenerar diploma PDF
+            zc_final_generar_diploma($certificado->ID, $certificado);
+            $resultados['diplomas']++;
+            
+        } catch (Exception $e) {
+            $resultados['errores'][] = "Error en certificado {$certificado->ID}: " . $e->getMessage();
+        }
+    }
+    
+    return $resultados;
+}
+
+// Regenerar certificados grupales por lotes
+function zc_regenerar_certificados_grupales_lote($offset, $limit) {
+    $resultados = array('certificados' => 0, 'diplomas' => 0, 'errores' => array());
+    
+    // Obtener certificados grupales del lote actual
+    $certificados_grupales = get_posts(array(
+        'post_type' => 'certificado_grupal',
+        'posts_per_page' => $limit,
+        'offset' => $offset,
+        'post_status' => 'publish'
+    ));
+    
+    foreach ($certificados_grupales as $certificado_grupal) {
+        try {
+            // Regenerar certificado grupal PDF
+            zc_grupal_generar_pdf_manual($certificado_grupal->ID, $certificado_grupal);
+            $resultados['certificados']++;
+            
+            // Regenerar diplomas compilados del grupo
+            zc_grupal_generar_diplomas_compilados($certificado_grupal->ID);
+            $resultados['diplomas']++;
+            
+        } catch (Exception $e) {
+            $resultados['errores'][] = "Error en certificado grupal {$certificado_grupal->ID}: " . $e->getMessage();
+        }
+    }
+    
+    return $resultados;
+}
 
