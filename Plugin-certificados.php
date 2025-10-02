@@ -25,6 +25,279 @@ Incluye: CPT 'certificado', meta boxes, generación PDF individual
 */
 
 // =============================================================================
+// PARTE 0: SISTEMA DE GESTIÓN DE TEMARIOS
+// =============================================================================
+
+// Crear tabla de temarios al activar plugin
+register_activation_hook(__FILE__, 'zc_crear_tabla_temarios');
+function zc_crear_tabla_temarios() {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'zc_temarios';
+    
+    $charset_collate = $wpdb->get_charset_collate();
+    
+    $sql = "CREATE TABLE $table_name (
+        id int(11) NOT NULL AUTO_INCREMENT,
+        nombre varchar(255) NOT NULL,
+        archivo_url text NOT NULL,
+        fecha_creacion datetime DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id)
+    ) $charset_collate;";
+    
+    require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+    dbDelta($sql);
+}
+
+// Añadir página de gestión de temarios
+add_action('admin_menu', 'zc_agregar_pagina_temarios');
+function zc_agregar_pagina_temarios() {
+    add_submenu_page(
+        'edit.php?post_type=certificado',
+        'Gestión de Temarios',
+        '📚 Temarios',
+        'manage_options',
+        'zc-gestion-temarios',
+        'zc_mostrar_pagina_temarios'
+    );
+}
+
+// Funciones para gestionar temarios
+function zc_obtener_todos_los_temarios() {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'zc_temarios';
+    return $wpdb->get_results("SELECT * FROM $table_name ORDER BY nombre ASC");
+}
+
+function zc_obtener_temario_por_id($id) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'zc_temarios';
+    return $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $id));
+}
+
+function zc_crear_temario($nombre, $archivo_url) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'zc_temarios';
+    
+    $result = $wpdb->insert(
+        $table_name,
+        array(
+            'nombre' => sanitize_text_field($nombre),
+            'archivo_url' => esc_url_raw($archivo_url)
+        ),
+        array('%s', '%s')
+    );
+    
+    return $result ? $wpdb->insert_id : false;
+}
+
+function zc_eliminar_temario($id) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'zc_temarios';
+    return $wpdb->delete($table_name, array('id' => $id), array('%d'));
+}
+
+function zc_actualizar_temario($id, $nombre, $archivo_url) {
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'zc_temarios';
+    
+    return $wpdb->update(
+        $table_name,
+        array(
+            'nombre' => sanitize_text_field($nombre),
+            'archivo_url' => esc_url_raw($archivo_url)
+        ),
+        array('id' => $id),
+        array('%s', '%s'),
+        array('%d')
+    );
+}
+
+// Función helper para obtener URL del temario por ID
+function zc_obtener_url_temario($temario_id) {
+    if (empty($temario_id)) return '';
+    
+    $temario = zc_obtener_temario_por_id($temario_id);
+    return $temario ? $temario->archivo_url : '';
+}
+
+// Página de gestión de temarios
+function zc_mostrar_pagina_temarios() {
+    // Procesar acciones
+    if (isset($_POST['accion'])) {
+        if ($_POST['accion'] === 'crear' && wp_verify_nonce($_POST['zc_temarios_nonce'], 'zc_temarios_action')) {
+            $nombre = sanitize_text_field($_POST['nombre_temario']);
+            $archivo_url = esc_url_raw($_POST['archivo_url']);
+            
+            if (!empty($nombre) && !empty($archivo_url)) {
+                $resultado = zc_crear_temario($nombre, $archivo_url);
+                if ($resultado) {
+                    echo '<div class="notice notice-success"><p>✅ Temario creado exitosamente.</p></div>';
+                } else {
+                    echo '<div class="notice notice-error"><p>❌ Error al crear el temario.</p></div>';
+                }
+            }
+        }
+        
+        if ($_POST['accion'] === 'eliminar' && wp_verify_nonce($_POST['zc_temarios_nonce'], 'zc_temarios_action')) {
+            $id = intval($_POST['temario_id']);
+            $resultado = zc_eliminar_temario($id);
+            if ($resultado) {
+                echo '<div class="notice notice-success"><p>✅ Temario eliminado exitosamente.</p></div>';
+            } else {
+                echo '<div class="notice notice-error"><p>❌ Error al eliminar el temario.</p></div>';
+            }
+        }
+        
+        if ($_POST['accion'] === 'editar' && wp_verify_nonce($_POST['zc_temarios_nonce'], 'zc_temarios_action')) {
+            $id = intval($_POST['temario_id']);
+            $nombre = sanitize_text_field($_POST['nombre_temario']);
+            $archivo_url = esc_url_raw($_POST['archivo_url']);
+            
+            if (!empty($nombre) && !empty($archivo_url)) {
+                $resultado = zc_actualizar_temario($id, $nombre, $archivo_url);
+                if ($resultado !== false) {
+                    echo '<div class="notice notice-success"><p>✅ Temario actualizado exitosamente.</p></div>';
+                } else {
+                    echo '<div class="notice notice-error"><p>❌ Error al actualizar el temario.</p></div>';
+                }
+            }
+        }
+    }
+    
+    $temarios = zc_obtener_todos_los_temarios();
+    ?>
+    <div class="wrap">
+        <h1>📚 Gestión de Temarios</h1>
+        <p>Administra los temarios PDF que aparecerán como opciones en los certificados.</p>
+        
+        <!-- Formulario para crear nuevo temario -->
+        <div class="card" style="max-width: 800px; margin-bottom: 20px;">
+            <h2>➕ Crear Nuevo Temario</h2>
+            <form method="post" action="">
+                <?php wp_nonce_field('zc_temarios_action', 'zc_temarios_nonce'); ?>
+                <input type="hidden" name="accion" value="crear">
+                
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Nombre del Temario</th>
+                        <td>
+                            <input type="text" name="nombre_temario" class="regular-text" placeholder="Ej: Curso Soldadura Básica" required>
+                            <p class="description">Nombre descriptivo que aparecerá en el dropdown de certificados.</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">URL del Archivo PDF</th>
+                        <td>
+                            <input type="url" name="archivo_url" class="regular-text" placeholder="https://validador.zenactivospa.cl/wp-content/uploads/..." required>
+                            <p class="description">
+                                <strong>💡 Cómo obtener la URL:</strong><br>
+                                1. Ve a <strong>Medios → Añadir nuevo</strong><br>
+                                2. Sube tu archivo PDF<br>
+                                3. Copia la URL del archivo y pégala aquí
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <p class="submit">
+                    <input type="submit" class="button-primary" value="➕ Crear Temario">
+                </p>
+            </form>
+        </div>
+        
+        <!-- Lista de temarios existentes -->
+        <div class="card">
+            <h2>📋 Temarios Disponibles (<?php echo count($temarios); ?>)</h2>
+            
+            <?php if (empty($temarios)): ?>
+                <p>No hay temarios creados aún. ¡Crea el primero usando el formulario de arriba!</p>
+            <?php else: ?>
+                <table class="wp-list-table widefat fixed striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre</th>
+                            <th>Archivo PDF</th>
+                            <th>Fecha Creación</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($temarios as $temario): ?>
+                            <tr>
+                                <td><?php echo esc_html($temario->id); ?></td>
+                                <td><strong><?php echo esc_html($temario->nombre); ?></strong></td>
+                                <td>
+                                    <a href="<?php echo esc_url($temario->archivo_url); ?>" target="_blank" class="button button-small">
+                                        📄 Ver PDF
+                                    </a>
+                                </td>
+                                <td><?php echo esc_html(date('d/m/Y H:i', strtotime($temario->fecha_creacion))); ?></td>
+                                <td>
+                                    <button onclick="editarTemario(<?php echo $temario->id; ?>, '<?php echo esc_js($temario->nombre); ?>', '<?php echo esc_js($temario->archivo_url); ?>')" class="button button-small">
+                                        ✏️ Editar
+                                    </button>
+                                    
+                                    <form method="post" style="display: inline;" onsubmit="return confirm('¿Estás seguro de eliminar este temario?');">
+                                        <?php wp_nonce_field('zc_temarios_action', 'zc_temarios_nonce'); ?>
+                                        <input type="hidden" name="accion" value="eliminar">
+                                        <input type="hidden" name="temario_id" value="<?php echo $temario->id; ?>">
+                                        <input type="submit" class="button button-small" value="🗑️ Eliminar">
+                                    </form>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+        </div>
+        
+        <!-- Modal para editar temario -->
+        <div id="modal-editar-temario" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999;">
+            <div style="background: white; margin: 5% auto; padding: 20px; width: 80%; max-width: 600px; border-radius: 5px;">
+                <h3>✏️ Editar Temario</h3>
+                <form method="post" action="">
+                    <?php wp_nonce_field('zc_temarios_action', 'zc_temarios_nonce'); ?>
+                    <input type="hidden" name="accion" value="editar">
+                    <input type="hidden" name="temario_id" id="editar_temario_id">
+                    
+                    <table class="form-table">
+                        <tr>
+                            <th scope="row">Nombre del Temario</th>
+                            <td><input type="text" name="nombre_temario" id="editar_nombre" class="regular-text" required></td>
+                        </tr>
+                        <tr>
+                            <th scope="row">URL del Archivo PDF</th>
+                            <td><input type="url" name="archivo_url" id="editar_url" class="regular-text" required></td>
+                        </tr>
+                    </table>
+                    
+                    <p>
+                        <input type="submit" class="button-primary" value="💾 Guardar Cambios">
+                        <button type="button" onclick="cerrarModal()" class="button">❌ Cancelar</button>
+                    </p>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+    function editarTemario(id, nombre, url) {
+        document.getElementById('editar_temario_id').value = id;
+        document.getElementById('editar_nombre').value = nombre;
+        document.getElementById('editar_url').value = url;
+        document.getElementById('modal-editar-temario').style.display = 'block';
+    }
+    
+    function cerrarModal() {
+        document.getElementById('modal-editar-temario').style.display = 'none';
+    }
+    </script>
+    <?php
+}
+
+// =============================================================================
 // PARTE 1: CREAR EL CUSTOM POST TYPE "CERTIFICADO" (INDIVIDUAL)
 // =============================================================================
 add_action('init', 'zc_final_crear_cpt_certificado');
@@ -65,8 +338,8 @@ function zc_final_mostrar_campos_html($post) {
     $firma_director_url = get_post_meta($post->ID, '_certificado_firma_director_url', true);
     $firma_instructor_url = get_post_meta($post->ID, '_certificado_firma_instructor_url', true);
     
-    // 📚 NUEVO CAMPO PARA TEMARIO DEL CURSO
-    $temario_url = get_post_meta($post->ID, '_certificado_temario_url', true);
+    // 📚 NUEVO CAMPO PARA TEMARIO DEL CURSO - SISTEMA DROPDOWN
+    $temario_id = get_post_meta($post->ID, '_certificado_temario_id', true);
     
     wp_nonce_field('zc_final_guardar_datos', 'zc_final_nonce');
 
@@ -135,16 +408,31 @@ function zc_final_mostrar_campos_html($post) {
     echo '• <strong>Tamaño recomendado:</strong> 400x200 píxeles, fondo transparente PNG';
     echo '</div>';
     
-    // 📚 SECCIÓN DE TEMARIO DEL CURSO
+    // 📚 SECCIÓN DE TEMARIO DEL CURSO - NUEVO SISTEMA DROPDOWN
     echo '<div class="zc-admin-section">';
     echo '<h3>📚 Temario del Curso (Opcional)</h3>';
-    echo '<p>Sube el PDF del temario a WordPress y copia aquí la URL. Aparecerá un botón "Ver Temario" en el verificador.</p>';
-    echo '<p><label><strong>URL del Temario (PDF):</strong><br><input type="url" name="certificado_temario_url" value="' . esc_attr($temario_url) . '" style="width:100%;" placeholder="https://validador.zenactivospa.cl/wp-content/uploads/2025/09/temario-curso-xyz.pdf"></label></p>';
+    echo '<p>Selecciona un temario de la lista o gestiona temarios desde <strong>Certificados → 📚 Temarios</strong>.</p>';
+    
+    // Obtener temarios disponibles y temario seleccionado actual
+    $temarios_disponibles = zc_obtener_todos_los_temarios();
+    $temario_seleccionado = get_post_meta($post->ID, '_certificado_temario_id', true);
+    
+    echo '<p><label><strong>Temario:</strong><br>';
+    echo '<select name="certificado_temario_id" style="width:100%;">';
+    echo '<option value="">Sin temario</option>';
+    
+    foreach ($temarios_disponibles as $temario) {
+        $selected = ($temario_seleccionado == $temario->id) ? 'selected="selected"' : '';
+        echo '<option value="' . esc_attr($temario->id) . '" ' . $selected . '>' . esc_html($temario->nombre) . '</option>';
+    }
+    
+    echo '</select></label></p>';
+    
     echo '<div class="zc-info-box">';
-    echo '<strong>💡 Cómo subir el temario:</strong><br>';
-    echo '1. Ve a <strong>Medios → Añadir nuevo</strong><br>';
-    echo '2. Sube tu archivo PDF del temario<br>';
-    echo '3. Copia la URL del archivo y pégala arriba<br>';
+    echo '<strong>💡 Gestión de temarios:</strong><br>';
+    echo '1. Ve a <strong>Certificados → 📚 Temarios</strong><br>';
+    echo '2. Sube tus archivos PDF y asígnales nombres<br>';
+    echo '3. Regresa aquí y selecciona el temario apropiado<br>';
     echo '4. Los visitantes verán un botón "📚 Ver Temario del Curso" en el verificador';
     echo '</div>';
     echo '</div>';
@@ -183,8 +471,14 @@ function zc_final_guardar_datos($post_id, $post) {
     if (isset($_POST['certificado_firma_director_url'])) update_post_meta($post_id, '_certificado_firma_director_url', esc_url_raw($_POST['certificado_firma_director_url']));
     if (isset($_POST['certificado_firma_instructor_url'])) update_post_meta($post_id, '_certificado_firma_instructor_url', esc_url_raw($_POST['certificado_firma_instructor_url']));
     
-    // 📚 Guardar URL del temario
-    if (isset($_POST['certificado_temario_url'])) update_post_meta($post_id, '_certificado_temario_url', esc_url_raw($_POST['certificado_temario_url']));
+    // 📚 Guardar ID del temario seleccionado
+    if (isset($_POST['certificado_temario_id'])) {
+        $temario_id = intval($_POST['certificado_temario_id']);
+        update_post_meta($post_id, '_certificado_temario_id', $temario_id);
+        
+        // Migración: limpiar URL antigua si existe
+        delete_post_meta($post_id, '_certificado_temario_url');
+    }
     
     // 🎓 CAMPOS ESPECÍFICOS PARA EL DIPLOMA DEL PARTICIPANTE
     if (isset($_POST['certificado_participante_rut'])) update_post_meta($post_id, '_certificado_participante_rut', sanitize_text_field($_POST['certificado_participante_rut']));
@@ -221,7 +515,7 @@ function zc_individual_sincronizar_certificado_grupal($post_id_individual, $post
     $fecha_realizacion = get_post_meta($post_id_individual, '_certificado_fecha_realizacion', true);
     $fecha_expiracion = get_post_meta($post_id_individual, '_certificado_fecha_expiracion', true);
     $oc_cliente = get_post_meta($post_id_individual, '_certificado_oc_cliente', true);
-    $temario_individual = get_post_meta($post_id_individual, '_certificado_temario_url', true);
+    $temario_individual_id = get_post_meta($post_id_individual, '_certificado_temario_id', true);
     
     // Actualizar certificado grupal solo con datos comunes (no específicos del participante)
     if (!empty($curso)) update_post_meta($post_id_grupal, '_certificado_grupal_curso', $curso);
@@ -235,7 +529,7 @@ function zc_individual_sincronizar_certificado_grupal($post_id_individual, $post
     if (!empty($oc_cliente)) update_post_meta($post_id_grupal, '_certificado_grupal_oc_cliente', $oc_cliente);
     
     // 📚 Sincronizar temario si está especificado
-    if (!empty($temario_individual)) update_post_meta($post_id_grupal, '_certificado_grupal_temario_url', $temario_individual);
+    if (!empty($temario_individual_id)) update_post_meta($post_id_grupal, '_certificado_grupal_temario_id', $temario_individual_id);
     
     // 🔄 ACTUALIZAR LISTA DE PARTICIPANTES EN EL CERTIFICADO GRUPAL
     zc_grupal_actualizar_lista_participantes($post_id_grupal);
@@ -731,10 +1025,17 @@ function zc_final_funcion_verificadora() {
                             <?php endif; ?>
                             
                             <?php 
-                            // 📚 Botón de temario si existe URL
-                            $temario_individual = get_post_meta(get_the_ID(), '_certificado_temario_url', true);
-                            if (!empty($temario_individual)): ?>
-                                <a href="<?php echo esc_url($temario_individual); ?>" target="_blank" class="zc-btn-descargar zc-btn-temario" style="background-color: #28a745; border-color: #28a745;">
+                            // 📚 Botón de temario - NUEVO SISTEMA DROPDOWN
+                            $temario_id = get_post_meta(get_the_ID(), '_certificado_temario_id', true);
+                            $temario_url = zc_obtener_url_temario($temario_id);
+                            
+                            // Migración: Si no hay ID pero hay URL antigua, usarla
+                            if (empty($temario_url)) {
+                                $temario_url = get_post_meta(get_the_ID(), '_certificado_temario_url', true);
+                            }
+                            
+                            if (!empty($temario_url)): ?>
+                                <a href="<?php echo esc_url($temario_url); ?>" target="_blank" class="zc-btn-descargar zc-btn-temario" style="background-color: #28a745; border-color: #28a745;">
                                     📚 Ver Temario del Curso
                                 </a>
                             <?php endif; ?>
@@ -806,10 +1107,17 @@ function zc_final_funcion_verificadora() {
                                 <?php endif; ?>
                                 
                                 <?php 
-                                // 📚 Botón de temario grupal si existe URL
-                                $temario_grupal = get_post_meta(get_the_ID(), '_certificado_grupal_temario_url', true);
-                                if (!empty($temario_grupal)): ?>
-                                    <a href="<?php echo esc_url($temario_grupal); ?>" target="_blank" class="zc-btn-descargar zc-btn-temario" style="background-color: #28a745; border-color: #28a745;">
+                                // 📚 Botón de temario grupal - NUEVO SISTEMA DROPDOWN
+                                $temario_grupal_id = get_post_meta(get_the_ID(), '_certificado_grupal_temario_id', true);
+                                $temario_grupal_url = zc_obtener_url_temario($temario_grupal_id);
+                                
+                                // Migración: Si no hay ID pero hay URL antigua, usarla
+                                if (empty($temario_grupal_url)) {
+                                    $temario_grupal_url = get_post_meta(get_the_ID(), '_certificado_grupal_temario_url', true);
+                                }
+                                
+                                if (!empty($temario_grupal_url)): ?>
+                                    <a href="<?php echo esc_url($temario_grupal_url); ?>" target="_blank" class="zc-btn-descargar zc-btn-temario" style="background-color: #28a745; border-color: #28a745;">
                                         📚 Ver Temario del Curso
                                     </a>
                                 <?php endif; ?>
@@ -2132,8 +2440,8 @@ function zc_grupal_mostrar_campos_html($post) {
     $firma_director_url = get_post_meta($post->ID, '_certificado_grupal_firma_director_url', true);
     $firma_instructor_url = get_post_meta($post->ID, '_certificado_grupal_firma_instructor_url', true);
     
-    // 📚 Campo para temario del curso grupal
-    $temario_grupal_url = get_post_meta($post->ID, '_certificado_grupal_temario_url', true);
+    // 📚 Campo para temario del curso grupal - SISTEMA DROPDOWN
+    $temario_grupal_id = get_post_meta($post->ID, '_certificado_grupal_temario_id', true);
     
     echo '<hr style="margin: 15px 0;">';
     echo '<h4>🖼️ Firmas Personalizadas (PNG)</h4>';
@@ -2143,12 +2451,24 @@ function zc_grupal_mostrar_campos_html($post) {
     echo '<p><label><strong>URL Firma Relator (PNG):</strong><br>';
     echo '<input type="url" name="certificado_grupal_firma_instructor_url" value="' . esc_attr($firma_instructor_url) . '" style="width:100%;" placeholder="https://ejemplo.com/firma-relator.png"></label></p>';
     
-    // 📚 Sección de temario para grupales
+    // 📚 Sección de temario para grupales - NUEVO SISTEMA DROPDOWN
     echo '<hr style="margin: 15px 0;">';
     echo '<h4>📚 Temario del Curso (Opcional)</h4>';
-    echo '<p style="color: #666;">URL del PDF del temario. Aparecerá un botón "Ver Temario" en el verificador grupal.</p>';
-    echo '<p><label><strong>URL del Temario (PDF):</strong><br>';
-    echo '<input type="url" name="certificado_grupal_temario_url" value="' . esc_attr($temario_grupal_url) . '" style="width:100%;" placeholder="https://validador.zenactivospa.cl/wp-content/uploads/2025/09/temario-curso-xyz.pdf"></label></p>';
+    echo '<p style="color: #666;">Selecciona un temario de la lista o gestiona temarios desde <strong>Certificados → 📚 Temarios</strong>.</p>';
+    
+    // Obtener temarios disponibles
+    $temarios_disponibles_grupal = zc_obtener_todos_los_temarios();
+    
+    echo '<p><label><strong>Temario:</strong><br>';
+    echo '<select name="certificado_grupal_temario_id" style="width:100%;">';
+    echo '<option value="">Sin temario</option>';
+    
+    foreach ($temarios_disponibles_grupal as $temario) {
+        $selected = ($temario_grupal_id == $temario->id) ? 'selected="selected"' : '';
+        echo '<option value="' . esc_attr($temario->id) . '" ' . $selected . '>' . esc_html($temario->nombre) . '</option>';
+    }
+    
+    echo '</select></label></p>';
     echo '</div>';
     
     echo '<div class="zc-url-section">';
@@ -2187,9 +2507,13 @@ function zc_grupal_guardar_datos($post_id, $post) {
         update_post_meta($post_id, '_certificado_grupal_firma_instructor_url', esc_url_raw($_POST['certificado_grupal_firma_instructor_url']));
     }
     
-    // 📚 Guardar URL del temario grupal
-    if (isset($_POST['certificado_grupal_temario_url'])) {
-        update_post_meta($post_id, '_certificado_grupal_temario_url', esc_url_raw($_POST['certificado_grupal_temario_url']));
+    // 📚 Guardar ID del temario grupal seleccionado
+    if (isset($_POST['certificado_grupal_temario_id'])) {
+        $temario_grupal_id = intval($_POST['certificado_grupal_temario_id']);
+        update_post_meta($post_id, '_certificado_grupal_temario_id', $temario_grupal_id);
+        
+        // Migración: limpiar URL antigua si existe
+        delete_post_meta($post_id, '_certificado_grupal_temario_url');
     }
 
     // 🎯 MAGIA: Auto-generar certificados individuales solo si está publicado
@@ -2245,7 +2569,7 @@ function zc_grupal_sincronizar_certificados_individuales($post_id_grupal) {
     $oc_cliente = get_post_meta($post_id_grupal, '_certificado_grupal_oc_cliente', true);
     $firma_director_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_firma_director_url', true);
     $firma_instructor_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_firma_instructor_url', true);
-    $temario_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_temario_url', true);
+    $temario_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_temario_id', true);
 
     // Actualizar cada certificado individual con los datos del grupal
     foreach ($certificados_individuales as $certificado_individual) {
@@ -2270,9 +2594,9 @@ function zc_grupal_sincronizar_certificados_individuales($post_id_grupal) {
             update_post_meta($post_id_individual, '_certificado_firma_instructor_url', $firma_instructor_grupal);
         }
         
-        // 📚 Actualizar URL del temario si está especificado
+        // 📚 Actualizar ID del temario si está especificado
         if (!empty($temario_grupal)) {
-            update_post_meta($post_id_individual, '_certificado_temario_url', $temario_grupal);
+            update_post_meta($post_id_individual, '_certificado_temario_id', $temario_grupal);
         }
         
         // Regenerar PDFs del certificado individual con datos actualizados
@@ -2413,10 +2737,10 @@ function zc_grupal_procesar_participantes($post_id_grupal) {
                 update_post_meta($post_id_individual, '_certificado_firma_instructor_url', $firma_instructor_grupal);
             }
             
-            // 📚 COPIAR URL DEL TEMARIO DEL CERTIFICADO GRUPAL AL INDIVIDUAL
-            $temario_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_temario_url', true);
+            // 📚 COPIAR ID DEL TEMARIO DEL CERTIFICADO GRUPAL AL INDIVIDUAL
+            $temario_grupal = get_post_meta($post_id_grupal, '_certificado_grupal_temario_id', true);
             if (!empty($temario_grupal)) {
-                update_post_meta($post_id_individual, '_certificado_temario_url', $temario_grupal);
+                update_post_meta($post_id_individual, '_certificado_temario_id', $temario_grupal);
             }
 
             // Agregar metadato de referencia al certificado grupal
