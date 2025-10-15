@@ -2888,38 +2888,64 @@ EOD;
     $pdf->Cell(0, 10, 'LISTADO DE PARTICIPANTES', 0, 1, 'C');
     $pdf->Ln(2);
 
-    // --- TABLA DE PARTICIPANTES (LÓGICA IDÉNTICA) ---
+    // --- TABLA DE PARTICIPANTES CON PAGINACIÓN AUTOMÁTICA (MÁXIMO 15 POR PÁGINA) ---
     $participantes = explode("\n", trim($listado_participantes_raw));
+    
+    // Filtrar participantes vacíos y preparar datos
+    $participantes_validos = array();
+    foreach ($participantes as $participante_line) {
+        $participante_line = trim($participante_line);
+        if (!empty($participante_line)) {
+            $participantes_validos[] = $participante_line;
+        }
+    }
+    
+    $total_participantes = count($participantes_validos);
+    $participantes_por_pagina = 15; // Máximo 15 participantes por página
+    $total_paginas = ceil($total_participantes / $participantes_por_pagina);
     
     $style_th = 'border: 1px solid #000; background-color:#000; color:#fff; font-weight:bold; vertical-align:middle; padding:5px;';
     $style_td = 'border: 1px solid #000; vertical-align:middle; padding:5px;';
-
-    $tbl_participantes = <<<EOD
-    <table cellspacing="0" style="font-size:8pt;">
-        <thead>
-            <tr>
-                <th width="5%" align="left" style="$style_th">Nº</th>
-                <th width="35%" align="left" style="$style_th">Nombre completo</th>
-                <th width="15%" align="left" style="$style_th">RUT</th>
-                <th width="10%" align="left" style="$style_th">Asistencia</th>
-                <th width="8%" align="left" style="$style_th">Nota T.</th>
-                <th width="8%" align="left" style="$style_th">Nota S.</th>
-                <th width="9%" align="left" style="$style_th">Nota Final</th>
-                <th width="10%" align="left" style="$style_th">Aprobación</th>
-            </tr>
-        </thead>
-        <tbody>
+    
+    // Procesar participantes en bloques de 15
+    for ($pagina = 0; $pagina < $total_paginas; $pagina++) {
+        $inicio = $pagina * $participantes_por_pagina;
+        $fin = min($inicio + $participantes_por_pagina, $total_participantes);
+        
+        // Si no es la primera página, agregar nueva página
+        if ($pagina > 0) {
+            $pdf->AddPage();
+            
+            // Repetir encabezado en páginas adicionales
+            $pdf->SetFont($font, 'B', 12);
+            $pdf->Cell(0, 10, 'LISTADO DE PARTICIPANTES (Continuación)', 0, 1, 'C');
+            $pdf->Ln(2);
+        }
+        
+        // Crear tabla para este bloque de participantes
+        $tbl_participantes = <<<EOD
+        <table cellspacing="0" style="font-size:8pt;">
+            <thead>
+                <tr>
+                    <th width="5%" align="left" style="$style_th">Nº</th>
+                    <th width="35%" align="left" style="$style_th">Nombre completo</th>
+                    <th width="15%" align="left" style="$style_th">RUT</th>
+                    <th width="10%" align="left" style="$style_th">Asistencia</th>
+                    <th width="8%" align="left" style="$style_th">Nota T.</th>
+                    <th width="8%" align="left" style="$style_th">Nota S.</th>
+                    <th width="9%" align="left" style="$style_th">Nota Final</th>
+                    <th width="10%" align="left" style="$style_th">Aprobación</th>
+                </tr>
+            </thead>
+            <tbody>
 EOD;
-
-    if (!empty($participantes)) {
-        $i = 0;
-        foreach ($participantes as $participante_line) {
-            $i++;
-            $participante_line = trim($participante_line);
-            if (empty($participante_line)) continue;
+        
+        // Agregar participantes de este bloque
+        for ($i = $inicio; $i < $fin; $i++) {
+            $numero = $i + 1; // Número continuo desde 1
+            $participante_line = $participantes_validos[$i];
             
             $partes = str_getcsv($participante_line, ',');
-            $numero = $i;
             $nombre = $partes[0] ?? '';
             $rut = $partes[1] ?? '';
             $asistencia = $partes[2] ?? '';
@@ -2939,10 +2965,23 @@ EOD;
             $tbl_participantes .= '<td width="10%" align="left" style="' . $style_td . '">' . esc_html($aprobacion) . '</td>';
             $tbl_participantes .= '</tr>';
         }
+        
+        $tbl_participantes .= '</tbody></table>';
+        
+        // Renderizar tabla de esta página
+        $pdf->writeHTML($tbl_participantes, true, false, true, false, '');
+        
+        // Solo agregar firmas y footer en la ÚLTIMA página
+        if ($pagina == $total_paginas - 1) {
+            // Continuar con firmas y footer (código existente)
+        } else {
+            // En páginas intermedias, agregar nota de continuación
+            $pdf->Ln(10);
+            $pdf->SetFont($font, 'I', 9);
+            $pdf->SetTextColor(100, 100, 100);
+            $pdf->Cell(0, 5, 'Continúa en la siguiente página...', 0, 1, 'R');
+        }
     }
-    $tbl_participantes .= '</tbody></table>';
-    
-    $pdf->writeHTML($tbl_participantes, true, false, true, false, '');
 
     // --- SECCIÓN DE FIRMAS CON PNG PERSONALIZABLES ---
     if ($pdf->GetY() > ($pdf->getPageHeight() - 60)) {
