@@ -3150,7 +3150,7 @@ function zc_grupal_mostrar_pagina_importador() {
                     // Generar PDF del certificado grupal
                     $post_object = get_post($post_id);
                     if ($post_object) {
-                        zc_grupal_generar_pdf($post_id, $post_object);
+                        zc_grupal_generar_pdf_manual($post_id, $post_object);
                         // La auto-generación de individuales se activa automáticamente por el hook save_post
                     }
 
