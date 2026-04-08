@@ -359,6 +359,7 @@ function zc_final_mostrar_campos_html($post) {
     echo '<p><label><strong>Fecha de Emisión:</strong><br><input type="date" name="certificado_fecha" value="' . esc_attr($fecha) . '"></label></p>';
     echo '<p><label><strong>Fecha de Realización:</strong><br><input type="date" name="certificado_fecha_realizacion" value="' . esc_attr($fecha_realizacion) . '"></label></p>';
     echo '<p><label><strong>Fecha de Expiración:</strong><br><input type="date" name="certificado_fecha_expiracion" value="' . esc_attr($fecha_expiracion) . '"></label></p>';
+    echo '<p class="description">Si dejas la expiración vacía, se calculará sola (' . (int) zc_certificado_anos_vigencia_default() . ' años desde la realización; si no hay realización, desde la fecha de emisión). Aparece en el certificado y en el diploma.</p>';
     echo '<p><label><strong>Cliente:</strong><br><input type="text" name="certificado_oc_cliente" value="' . esc_attr($oc_cliente) . '" style="width:100%;"></label></p>';
     echo '</div>';
 
@@ -485,6 +486,8 @@ function zc_final_guardar_datos($post_id, $post) {
     if (isset($_POST['certificado_participante_asistencia'])) update_post_meta($post_id, '_certificado_participante_asistencia', sanitize_text_field($_POST['certificado_participante_asistencia']));
     if (isset($_POST['certificado_participante_nota_final'])) update_post_meta($post_id, '_certificado_participante_nota_final', sanitize_text_field($_POST['certificado_participante_nota_final']));
     if (isset($_POST['certificado_participante_aprobacion'])) update_post_meta($post_id, '_certificado_participante_aprobacion', sanitize_text_field($_POST['certificado_participante_aprobacion']));
+    
+    zc_certificado_autocompletar_meta_expiracion($post_id, '_certificado_fecha_realizacion', '_certificado_fecha_expiracion', '_certificado_fecha');
     
     // 🔄 SINCRONIZACIÓN INDIVIDUAL → GRUPAL: Si este certificado proviene de un grupo, sincronizar datos comunes
     $post_id_grupal = get_post_meta($post_id, '_certificado_origen_grupal', true);
@@ -1266,6 +1269,92 @@ function zc_final_funcion_verificadora() {
 }
 
 // =============================================================================
+// Fechas de vigencia: realización, expiración (+N años si no hay expiración manual)
+// =============================================================================
+
+function zc_certificado_anos_vigencia_default() {
+    $n = (int) apply_filters('zc_certificado_anos_vigencia', 2);
+    return $n >= 1 ? $n : 2;
+}
+
+function zc_certificado_formato_fecha_pdf($fecha_ymd) {
+    $fecha_ymd = trim((string) $fecha_ymd);
+    if ($fecha_ymd === '') {
+        return '';
+    }
+    $ts = strtotime($fecha_ymd . ' 12:00:00');
+    if ($ts === false) {
+        return $fecha_ymd;
+    }
+    return date_i18n('d/m/Y', $ts);
+}
+
+/**
+ * @return array{realizacion_ymd:string,expiracion_ymd:string,realizacion_txt:string,expiracion_txt:string,exp_automatica:bool,vigencia_estandar:bool,anos_vigencia:int}
+ */
+function zc_certificado_resolver_fechas_vigencia($fecha_realizacion, $fecha_expiracion, $fecha_emision = '') {
+    $real = trim((string) $fecha_realizacion);
+    if ($real === '') {
+        $real = trim((string) $fecha_emision);
+    }
+    $exp = trim((string) $fecha_expiracion);
+    $ts_real = ($real !== '') ? strtotime($real . ' 12:00:00') : false;
+    $anos = zc_certificado_anos_vigencia_default();
+    $exp_automatica = false;
+    if ($exp === '' && $ts_real) {
+        $exp = date('Y-m-d', strtotime('+' . $anos . ' years', $ts_real));
+        $exp_automatica = true;
+    }
+    $ts_exp = ($exp !== '') ? strtotime($exp . ' 12:00:00') : false;
+    $vigencia_estandar = false;
+    if ($ts_real && $ts_exp) {
+        $expected = strtotime('+' . $anos . ' years', $ts_real);
+        $vigencia_estandar = (abs($ts_exp - $expected) < 86400);
+    }
+    return array(
+        'realizacion_ymd'   => $real,
+        'expiracion_ymd'    => $exp,
+        'realizacion_txt'   => zc_certificado_formato_fecha_pdf($real),
+        'expiracion_txt'    => zc_certificado_formato_fecha_pdf($exp),
+        'exp_automatica'    => $exp_automatica,
+        'vigencia_estandar' => $vigencia_estandar,
+        'anos_vigencia'     => $anos,
+    );
+}
+
+function zc_certificado_fechas_desde_post_id($post_id) {
+    return zc_certificado_resolver_fechas_vigencia(
+        get_post_meta($post_id, '_certificado_fecha_realizacion', true),
+        get_post_meta($post_id, '_certificado_fecha_expiracion', true),
+        get_post_meta($post_id, '_certificado_fecha', true)
+    );
+}
+
+function zc_certificado_grupal_fechas_desde_post_id($post_id) {
+    return zc_certificado_resolver_fechas_vigencia(
+        get_post_meta($post_id, '_certificado_grupal_fecha_realizacion', true),
+        get_post_meta($post_id, '_certificado_grupal_fecha_expiracion', true),
+        get_post_meta($post_id, '_certificado_grupal_fecha', true)
+    );
+}
+
+/** Si la expiración está vacía, guarda la calculada desde realización (o emisión). */
+function zc_certificado_autocompletar_meta_expiracion($post_id, $key_real, $key_exp, $key_emision) {
+    $exp = trim((string) get_post_meta($post_id, $key_exp, true));
+    if ($exp !== '') {
+        return;
+    }
+    $res = zc_certificado_resolver_fechas_vigencia(
+        get_post_meta($post_id, $key_real, true),
+        '',
+        get_post_meta($post_id, $key_emision, true)
+    );
+    if ($res['expiracion_ymd'] !== '') {
+        update_post_meta($post_id, $key_exp, $res['expiracion_ymd']);
+    }
+}
+
+// =============================================================================
 // PARTE 6: AUTOMATIZACIÓN DE PDF CON TCPDF (VERSIÓN FINAL CON FONDO PNG)
 // =============================================================================
 add_action('wp_after_insert_post', 'zc_final_generar_pdf', 20, 2);
@@ -1308,8 +1397,9 @@ function zc_final_generar_pdf($post_id, $post) {
     $director = get_post_meta($post_id, '_certificado_director', true) ?: '';
     $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: '';
     $duracion = get_post_meta($post_id, '_certificado_duracion', true);
-    $fecha_realizacion = get_post_meta($post_id, '_certificado_fecha_realizacion', true);
-    $fecha_expiracion = get_post_meta($post_id, '_certificado_fecha_expiracion', true);
+    $fechas_cert = zc_certificado_fechas_desde_post_id($post_id);
+    $fecha_realizacion = $fechas_cert['realizacion_txt'];
+    $fecha_expiracion = $fechas_cert['expiracion_txt'];
     $oc_cliente = get_post_meta($post_id, '_certificado_oc_cliente', true);
     $listado_participantes_raw = get_post_meta($post_id, '_certificado_listado_participantes', true);
     $verification_url = 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/?id=' . urlencode($codigo);
@@ -1563,7 +1653,6 @@ function zc_final_generar_diploma($post_id, $post) {
     $codigo = get_post_meta($post_id, '_certificado_codigo', true);
     $participante = get_post_meta($post_id, '_certificado_participante', true);
     $curso = get_post_meta($post_id, '_certificado_curso', true);
-    $fecha = get_post_meta($post_id, '_certificado_fecha', true);
     $director = get_post_meta($post_id, '_certificado_director', true) ?: '';
     $instructor = get_post_meta($post_id, '_certificado_instructor', true) ?: '';
     $empresa = get_post_meta($post_id, '_certificado_empresa', true); // Obtener el dato de la empresa
@@ -1604,52 +1693,52 @@ function zc_final_generar_diploma($post_id, $post) {
     $pdf->SetX($contentX);
 
     // --- INICIO: CONTENIDO DEL DIPLOMA AJUSTADO Y CENTRADO ---
+    // Nota layout: writeHTMLCell(0,0,...) en TCPDF reserva alto = resto de página (hueco enorme). Usar alto fijo + autopadding false.
 
-    // Título "DIPLOMA DE APROBACIÓN"
-    $pdf->SetY(25);
-    $pdf->SetFont($font, 'B', 30);
+    // Título "DIPLOMA DE APROBACIÓN" (bloque algo más arriba para ganar aire hacia firmas)
+    $pdf->SetY(18);
+    $pdf->SetFont($font, 'B', 28);
     $pdf->SetTextColor(50, 50, 50);
-    $pdf->Cell(0, 15, 'DIPLOMA DE APROBACIÓN', 0, 1, 'C');
+    $pdf->Cell(0, 11, 'DIPLOMA DE APROBACIÓN', 0, 1, 'C');
 
     // Subtítulo "ZEN ACTIVO"
-    $pdf->SetFont($font, 'B', 18);
+    $pdf->SetFont($font, 'B', 17);
     $pdf->SetTextColor(132, 188, 65);
-    $pdf->Cell(0, 10, 'ZEN ACTIVO', 0, 1, 'C');
-    $pdf->Ln(5);
+    $pdf->Cell(0, 7, 'ZEN ACTIVO', 0, 1, 'C');
+    $pdf->Ln(2);
 
     // Barra verde con texto (ya está centrada)
     $pdf->SetFillColor(132, 188, 65);
     $pdf->SetTextColor(255, 255, 255);
     $pdf->SetFont($font, 'B', 12);
-    $pdf->Cell(0, 10, 'POR LA PRESENTE CERTIFICA QUE', 0, 1, 'C', true);
-    $pdf->Ln(8);
+    $pdf->Cell(0, 8, 'POR LA PRESENTE CERTIFICA QUE', 0, 1, 'C', true);
+    $pdf->Ln(3);
 
     // Nombre del Participante
     $pdf->SetFont($font, 'B', 26);
     $pdf->SetTextColor(50, 50, 50);
-    $pdf->Cell(0, 15, $participante, 0, 1, 'C');
+    $pdf->Cell(0, 11, $participante, 0, 1, 'C');
 
     // 🎯 Empresa (solo mostrar si viene de un certificado grupal)
     $origen_grupal = get_post_meta($post_id, '_certificado_origen_grupal', true);
     if (!empty($empresa) && !empty($origen_grupal)) {
         $pdf->SetFont($font, '', 11);
         $pdf->SetTextColor(80, 80, 80);
-        // Se usa HTML para poder centrar el texto mixto (normal y negrita)
-        $empresa_html = 'Cliente: <b>' . esc_html($empresa) . '</b>';
-        $pdf->writeHTMLCell(0, 0, '', '', $empresa_html, 0, 1, 0, true, 'C', true);
-        $pdf->Ln(8);
+        $empresa_html = '<div style="margin:0;padding:0;line-height:1.15;text-align:center;">Cliente: <b>' . esc_html($empresa) . '</b></div>';
+        $pdf->writeHTMLCell(0, 10, '', '', $empresa_html, 0, 1, 0, true, 'C', false);
+        $pdf->Ln(0);
     }
 
     // Texto "Por haber completado..."
     $pdf->SetFont($font, '', 11);
     $pdf->SetTextColor(80, 80, 80);
-    $pdf->Cell(0, 10, 'Por haber completado satisfactoriamente el curso de:', 0, 1, 'C');
+    $pdf->Cell(0, 6, 'Por haber completado satisfactoriamente el curso de:', 0, 1, 'C');
     
     // Nombre del curso
-    $pdf->SetFont($font, 'B', 18);
+    $pdf->SetFont($font, 'B', 17);
     $pdf->SetTextColor(132, 188, 65);
-    $pdf->MultiCell(0, 12, $curso, 0, 'C');
-    $pdf->Ln(8);
+    $pdf->MultiCell(0, 10, $curso, 0, 'C');
+    $pdf->Ln(3);
     
     // 🎯 INFORMACIÓN DINÁMICA DEL DIPLOMA BASADA EN DATOS DEL PARTICIPANTE
     $pdf->SetFont($font, '', 11);
@@ -1661,13 +1750,25 @@ function zc_final_generar_diploma($post_id, $post) {
     $nota_final_participante = get_post_meta($post_id, '_certificado_participante_nota_final', true) ?: '7.0';
     $aprobacion_participante = get_post_meta($post_id, '_certificado_participante_aprobacion', true) ?: 'Aprobado';
     
-    $pdf->Cell(0, 8, 'Duración: ' . $duracion_participante, 0, 1, 'C');
-    $pdf->Cell(0, 8, 'Asistencia: ' . $asistencia_participante, 0, 1, 'C');
-    $pdf->Cell(0, 8, 'Nota Final: ' . $nota_final_participante . ' (' . $aprobacion_participante . ')', 0, 1, 'C');
-    $pdf->Ln(8);
+    $pdf->Cell(0, 5, 'Duración: ' . $duracion_participante, 0, 1, 'C');
+    $pdf->Cell(0, 5, 'Asistencia: ' . $asistencia_participante, 0, 1, 'C');
+    $pdf->Cell(0, 5, 'Nota Final: ' . $nota_final_participante . ' (' . $aprobacion_participante . ')', 0, 1, 'C');
+    $fechas_diploma = zc_certificado_fechas_desde_post_id($post_id);
+    if ($fechas_diploma['realizacion_txt'] !== '') {
+        $pdf->Cell(0, 5, 'Fecha de realización: ' . $fechas_diploma['realizacion_txt'], 0, 1, 'C');
+    }
+    if ($fechas_diploma['expiracion_txt'] !== '') {
+        $anos_txt = (int) $fechas_diploma['anos_vigencia'];
+        if (!empty($fechas_diploma['vigencia_estandar']) || !empty($fechas_diploma['exp_automatica'])) {
+            $pdf->MultiCell(0, 5, 'Vigencia del certificado: ' . $anos_txt . ' años desde la realización. Expira el ' . $fechas_diploma['expiracion_txt'], 0, 'C');
+        } else {
+            $pdf->Cell(0, 5, 'Fecha de expiración del certificado: ' . $fechas_diploma['expiracion_txt'], 0, 1, 'C');
+        }
+    }
+    $pdf->Ln(3);
 
     // --- SECCIÓN DE FIRMAS CON IMAGEN PNG (CENTRADO HORIZONTAL) ---
-    $yFirmas = 140; // 🔝 Subido 10mm para mejor posicionamiento
+    $yFirmas = 136;
     $pdf->SetY($yFirmas);
 
     // Posiciones X para las firmas
@@ -2420,6 +2521,7 @@ function zc_grupal_mostrar_campos_html($post) {
     echo '<p><label><strong>Fecha de Emisión:</strong><br><input type="date" name="certificado_grupal_fecha" value="' . esc_attr($fecha) . '"></label></p>';
     echo '<p><label><strong>Fecha de Realización:</strong><br><input type="date" name="certificado_grupal_fecha_realizacion" value="' . esc_attr($fecha_realizacion) . '"></label></p>';
     echo '<p><label><strong>Fecha de Expiración:</strong><br><input type="date" name="certificado_grupal_fecha_expiracion" value="' . esc_attr($fecha_expiracion) . '"></label></p>';
+    echo '<p class="description">Si la expiración queda vacía, se calcula automáticamente (' . (int) zc_certificado_anos_vigencia_default() . ' años desde la realización o desde la fecha de emisión del grupo).</p>';
     echo '<p><label><strong>Cliente:</strong><br><input type="text" name="certificado_grupal_oc_cliente" value="' . esc_attr($oc_cliente) . '" style="width:100%;"></label></p>';
     echo '</div>';
 
@@ -2515,6 +2617,8 @@ function zc_grupal_guardar_datos($post_id, $post) {
         // Migración: limpiar URL antigua si existe
         delete_post_meta($post_id, '_certificado_grupal_temario_url');
     }
+
+    zc_certificado_autocompletar_meta_expiracion($post_id, '_certificado_grupal_fecha_realizacion', '_certificado_grupal_fecha_expiracion', '_certificado_grupal_fecha');
 
     // 🎯 MAGIA: Auto-generar certificados individuales solo si está publicado
     if ($post->post_status === 'publish') {
@@ -2826,8 +2930,9 @@ function zc_grupal_generar_pdf_manual($post_id, $post) {
     $director = get_post_meta($post_id, '_certificado_grupal_director', true) ?: '';
     $instructor = get_post_meta($post_id, '_certificado_grupal_instructor', true) ?: '';
     $duracion = get_post_meta($post_id, '_certificado_grupal_duracion', true);
-    $fecha_realizacion = get_post_meta($post_id, '_certificado_grupal_fecha_realizacion', true);
-    $fecha_expiracion = get_post_meta($post_id, '_certificado_grupal_fecha_expiracion', true);
+    $fechas_grupal = zc_certificado_grupal_fechas_desde_post_id($post_id);
+    $fecha_realizacion = $fechas_grupal['realizacion_txt'];
+    $fecha_expiracion = $fechas_grupal['expiracion_txt'];
     $oc_cliente = get_post_meta($post_id, '_certificado_grupal_oc_cliente', true);
     $listado_participantes_raw = get_post_meta($post_id, '_certificado_grupal_listado_participantes', true);
     $verification_url = 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/?id=' . urlencode($codigo);
@@ -3278,7 +3383,6 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $codigo = get_post_meta($post_id_individual, '_certificado_codigo', true);
         $participante = get_post_meta($post_id_individual, '_certificado_participante', true);
         $curso_individual = get_post_meta($post_id_individual, '_certificado_curso', true);
-        $fecha = get_post_meta($post_id_individual, '_certificado_fecha', true);
         $director = get_post_meta($post_id_individual, '_certificado_director', true) ?: '';
         $instructor = get_post_meta($post_id_individual, '_certificado_instructor', true) ?: '';
         $empresa_individual = get_post_meta($post_id_individual, '_certificado_empresa', true);
@@ -3297,49 +3401,49 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $contentX = 85;
         $pdf->SetX($contentX);
         
-        // Título "DIPLOMA DE APROBACIÓN"
-        $pdf->SetY(25);
-        $pdf->SetFont($font, 'B', 30);
+        // Título "DIPLOMA DE APROBACIÓN" (alineado con diploma individual)
+        $pdf->SetY(18);
+        $pdf->SetFont($font, 'B', 28);
         $pdf->SetTextColor(50, 50, 50);
-        $pdf->Cell(0, 15, 'DIPLOMA DE APROBACIÓN', 0, 1, 'C');
+        $pdf->Cell(0, 11, 'DIPLOMA DE APROBACIÓN', 0, 1, 'C');
         
         // Subtítulo "ZEN ACTIVO"
-        $pdf->SetFont($font, 'B', 18);
+        $pdf->SetFont($font, 'B', 17);
         $pdf->SetTextColor(132, 188, 65);
-        $pdf->Cell(0, 10, 'ZEN ACTIVO', 0, 1, 'C');
-        $pdf->Ln(5);
+        $pdf->Cell(0, 7, 'ZEN ACTIVO', 0, 1, 'C');
+        $pdf->Ln(2);
         
         // Barra verde
         $pdf->SetFillColor(132, 188, 65);
         $pdf->SetTextColor(255, 255, 255);
         $pdf->SetFont($font, 'B', 12);
-        $pdf->Cell(0, 10, 'POR LA PRESENTE CERTIFICA QUE', 0, 1, 'C', true);
-        $pdf->Ln(8);
+        $pdf->Cell(0, 8, 'POR LA PRESENTE CERTIFICA QUE', 0, 1, 'C', true);
+        $pdf->Ln(3);
         
         // Nombre del Participante
         $pdf->SetFont($font, 'B', 26);
         $pdf->SetTextColor(50, 50, 50);
-        $pdf->Cell(0, 15, $participante, 0, 1, 'C');
+        $pdf->Cell(0, 11, $participante, 0, 1, 'C');
         
-        // Empresa
+        // Empresa (altura fija: evita hueco gigante con writeHTMLCell h=0)
         if (!empty($empresa_individual)) {
             $pdf->SetFont($font, '', 11);
             $pdf->SetTextColor(80, 80, 80);
-            $empresa_html = 'Cliente: <b>' . esc_html($empresa_individual) . '</b>';
-            $pdf->writeHTMLCell(0, 0, '', '', $empresa_html, 0, 1, 0, true, 'C', true);
-            $pdf->Ln(8);
+            $empresa_html = '<div style="margin:0;padding:0;line-height:1.15;text-align:center;">Cliente: <b>' . esc_html($empresa_individual) . '</b></div>';
+            $pdf->writeHTMLCell(0, 10, '', '', $empresa_html, 0, 1, 0, true, 'C', false);
+            $pdf->Ln(0);
         }
         
         // Texto "Por haber completado..."
         $pdf->SetFont($font, '', 11);
         $pdf->SetTextColor(80, 80, 80);
-        $pdf->Cell(0, 10, 'Por haber completado satisfactoriamente el curso de:', 0, 1, 'C');
+        $pdf->Cell(0, 6, 'Por haber completado satisfactoriamente el curso de:', 0, 1, 'C');
         
         // Nombre del curso
-        $pdf->SetFont($font, 'B', 18);
+        $pdf->SetFont($font, 'B', 17);
         $pdf->SetTextColor(132, 188, 65);
-        $pdf->MultiCell(0, 12, $curso_individual, 0, 'C');
-        $pdf->Ln(8);
+        $pdf->MultiCell(0, 10, $curso_individual, 0, 'C');
+        $pdf->Ln(3);
         
         // 🎓 LÍNEAS DINÁMICAS DEL DIPLOMA BASADAS EN DATOS REALES DEL PARTICIPANTE
         $pdf->SetFont($font, '', 11);
@@ -3351,13 +3455,25 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $nota_final_individual = get_post_meta($post_id_individual, '_certificado_participante_nota_final', true) ?: '7.0';
         $aprobacion_individual = get_post_meta($post_id_individual, '_certificado_participante_aprobacion', true) ?: 'Aprobado';
         
-        $pdf->Cell(0, 6, 'Duración: ' . $duracion_individual, 0, 1, 'C');
-        $pdf->Cell(0, 6, 'Asistencia: ' . $asistencia_individual, 0, 1, 'C');
-        $pdf->Cell(0, 6, 'Nota Final: ' . $nota_final_individual . ' (' . $aprobacion_individual . ')', 0, 1, 'C');
-        $pdf->Ln(10);
+        $pdf->Cell(0, 5, 'Duración: ' . $duracion_individual, 0, 1, 'C');
+        $pdf->Cell(0, 5, 'Asistencia: ' . $asistencia_individual, 0, 1, 'C');
+        $pdf->Cell(0, 5, 'Nota Final: ' . $nota_final_individual . ' (' . $aprobacion_individual . ')', 0, 1, 'C');
+        $fechas_diploma_g = zc_certificado_fechas_desde_post_id($post_id_individual);
+        if ($fechas_diploma_g['realizacion_txt'] !== '') {
+            $pdf->Cell(0, 5, 'Fecha de realización: ' . $fechas_diploma_g['realizacion_txt'], 0, 1, 'C');
+        }
+        if ($fechas_diploma_g['expiracion_txt'] !== '') {
+            $anos_g = (int) $fechas_diploma_g['anos_vigencia'];
+            if (!empty($fechas_diploma_g['vigencia_estandar']) || !empty($fechas_diploma_g['exp_automatica'])) {
+                $pdf->MultiCell(0, 5, 'Vigencia del certificado: ' . $anos_g . ' años desde la realización. Expira el ' . $fechas_diploma_g['expiracion_txt'], 0, 'C');
+            } else {
+                $pdf->Cell(0, 5, 'Fecha de expiración del certificado: ' . $fechas_diploma_g['expiracion_txt'], 0, 1, 'C');
+            }
+        }
+        $pdf->Ln(3);
         
         // Firmas con PNG personalizables
-        $yFirmas = 140; // 🔝 Subido 10mm para mejor posicionamiento
+        $yFirmas = 136;
         $firmaDirectorX = 60;
         $firmaInstructorX = 297 - 60 - 80;
         
