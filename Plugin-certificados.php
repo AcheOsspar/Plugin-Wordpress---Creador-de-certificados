@@ -472,6 +472,17 @@ function zc_final_mostrar_campos_html($post) {
     echo '<h3 class="participantes">Participantes</h3>';
     echo '<p><label for="listado_participantes"><strong>Lista de Participantes:</strong></label><br>';
     echo '<textarea name="certificado_listado_participantes" id="listado_participantes" rows="10" style="width:100%; font-family: monospace;">' . esc_textarea($listado_participantes) . '</textarea>';
+    echo '<div class="zc-participantes-excel-import" data-textarea-id="listado_participantes" style="margin:10px 0;padding:10px;background:#f6f7f7;border:1px solid #c3c4c7;border-radius:4px;">';
+    echo '<p style="margin:0 0 8px;"><strong>Importar desde Excel:</strong> las columnas deben ir en este orden (A→G): <code>Nombre completo, RUT, Asistencia, Nota T., Nota S., Nota final, Aprobación</code>. Se usa la primera hoja del archivo.</p>';
+    echo '<p style="margin:0 0 8px;">';
+    echo '<input type="file" class="zc-pexi-file" accept=".xlsx,.xls" style="display:none" aria-hidden="true" />';
+    echo '<button type="button" class="button button-secondary zc-pexi-trigger">📥 Cargar Excel (.xlsx / .xls)</button> ';
+    echo '<span class="zc-pexi-msg" style="margin-left:8px;font-weight:600;"></span>';
+    echo '</p>';
+    echo '<p style="margin:0;font-size:12px;color:#50575e;">';
+    echo '<label style="margin-right:16px;"><input type="checkbox" class="zc-pexi-skipheader" checked /> Primera fila es encabezado (omitir)</label>';
+    echo '<label><input type="checkbox" class="zc-pexi-append" /> Agregar al final (si no está marcado, reemplaza el listado)</label>';
+    echo '</p></div>';
     echo '<div class="zc-warning-box"><strong>Instrucciones:</strong> Ingrese un participante por línea. Use comas (,) para separar las columnas en el siguiente orden:<br><code>Nombre Completo,RUT,Asistencia,Nota T.,Nota S.,Nota Final,Aprobación</code><br>Ejemplo: <code>Apolinar Andrés Mendoza Cuno,22.626.949-9,100%,7.0,7.0,7.0,A</code></div>';
 
     echo '<p><label><strong>Nombre del Participante (para diploma individual):</strong><br><input type="text" name="certificado_participante" value="' . esc_attr($participante) . '" style="width:100%;"></label></p>';
@@ -1976,6 +1987,39 @@ function zc_final_admin_enqueue_styles($hook) {
 }
 add_action('admin_enqueue_scripts', 'zc_final_admin_enqueue_styles');
 
+/**
+ * Excel → listado de participantes (misma convención que el textarea CSV).
+ * Solo en edición de certificado individual o grupal.
+ */
+function zc_admin_enqueue_participantes_excel($hook) {
+    if (!in_array($hook, array('post.php', 'post-new.php'), true)) {
+        return;
+    }
+    $screen = function_exists('get_current_screen') ? get_current_screen() : null;
+    if (!$screen || !in_array($screen->post_type, array('certificado', 'certificado_grupal'), true)) {
+        return;
+    }
+    wp_enqueue_script(
+        'sheetjs',
+        'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+        array(),
+        '0.18.5',
+        true
+    );
+    $inline = <<<'JS'
+(function(){'use strict';
+var NUM=7;
+function escCSV(v){v=String(v==null?'':v).trim();if(/[",\n\r]/.test(v))return'"'+v.replace(/"/g,'""')+'"';return v;}
+function rowToLine(row){var a=[],i;for(i=0;i<NUM;i++){a.push(escCSV(row[i]));}return a.join(',');}
+function isRowEmpty(row){var i,s;for(i=0;i<NUM;i++){s=String(row[i]!=null?row[i]:'').trim();if(s!=='')return false;}return true;}
+document.addEventListener('click',function(e){if(!e.target.classList.contains('zc-pexi-trigger'))return;var w=e.target.closest('.zc-participantes-excel-import');if(!w)return;w.querySelector('.zc-pexi-file').click();});
+document.addEventListener('change',function(e){if(!e.target.classList.contains('zc-pexi-file'))return;var file=e.target.files[0];e.target.value='';if(!file){return;}if(typeof XLSX==='undefined'){return;}var wrap=e.target.closest('.zc-participantes-excel-import');var tid=wrap.getAttribute('data-textarea-id');var ta=document.getElementById(tid);var msg=wrap.querySelector('.zc-pexi-msg');if(!ta||!msg)return;var skipHeader=wrap.querySelector('.zc-pexi-skipheader').checked;var append=wrap.querySelector('.zc-pexi-append').checked;var reader=new FileReader();reader.onload=function(ev){try{var data=new Uint8Array(ev.target.result);var wb=XLSX.read(data,{type:'array'});var ws=wb.Sheets[wb.SheetNames[0]];var rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});var start=skipHeader?1:0;var lines=[],r,row;for(r=start;r<rows.length;r++){row=rows[r]||[];if(isRowEmpty(row))continue;lines.push(rowToLine(row));}if(!lines.length){msg.textContent='No se encontraron filas de datos.';msg.style.color='#b32d2e';return;}var block=lines.join('\n');if(append&&ta.value.trim()){ta.value=ta.value.replace(/\s*$/,'')+'\n'+block;}else{ta.value=block;}msg.textContent='Importadas '+lines.length+' fila(s). Revise el listado y guarde.';msg.style.color='#2271b1';}catch(err){msg.textContent='No se pudo leer el archivo.';msg.style.color='#b32d2e';}};reader.readAsArrayBuffer(file);});
+})();
+JS;
+    wp_add_inline_script('sheetjs', $inline, 'after');
+}
+add_action('admin_enqueue_scripts', 'zc_admin_enqueue_participantes_excel', 20);
+
 function zc_get_custom_css() {
     return '
     /* =================================================================
@@ -2634,6 +2678,17 @@ function zc_grupal_mostrar_campos_html($post) {
     echo '<h3 class="participantes">Listado de Participantes</h3>';
     echo '<p><label for="listado_participantes_grupal"><strong>Participantes:</strong></label><br>';
     echo '<textarea name="certificado_grupal_listado_participantes" id="listado_participantes_grupal" rows="10" style="width:100%; font-family: monospace;">' . esc_textarea($listado_participantes) . '</textarea>';
+    echo '<div class="zc-participantes-excel-import" data-textarea-id="listado_participantes_grupal" style="margin:10px 0;padding:10px;background:#f6f7f7;border:1px solid #c3c4c7;border-radius:4px;">';
+    echo '<p style="margin:0 0 8px;"><strong>Importar desde Excel:</strong> las columnas deben ir en este orden (A→G): <code>Nombre completo, RUT, Asistencia, Nota T., Nota S., Nota final, Aprobación</code>. Se usa la primera hoja del archivo.</p>';
+    echo '<p style="margin:0 0 8px;">';
+    echo '<input type="file" class="zc-pexi-file" accept=".xlsx,.xls" style="display:none" aria-hidden="true" />';
+    echo '<button type="button" class="button button-secondary zc-pexi-trigger">📥 Cargar Excel (.xlsx / .xls)</button> ';
+    echo '<span class="zc-pexi-msg" style="margin-left:8px;font-weight:600;"></span>';
+    echo '</p>';
+    echo '<p style="margin:0;font-size:12px;color:#50575e;">';
+    echo '<label style="margin-right:16px;"><input type="checkbox" class="zc-pexi-skipheader" checked /> Primera fila es encabezado (omitir)</label>';
+    echo '<label><input type="checkbox" class="zc-pexi-append" /> Agregar al final (si no está marcado, reemplaza el listado)</label>';
+    echo '</p></div>';
     echo '<div class="zc-warning-box"><strong>Instrucciones:</strong> Ingrese un participante por línea. Use comas (,) para separar las columnas en el siguiente orden:<br><code>Nombre Completo,RUT,Asistencia,Nota T.,Nota S.,Nota Final,Aprobación</code><br>Ejemplo: <code>Apolinar Andrés Mendoza Cuno,22.626.949-9,100%,7.0,7.0,7.0,A</code></div>';
     echo '<div class="zc-info-box"><h3>Auto-generación</h3>Al publicar, cada participante será registrado como certificado individual con código único.</div>';
     echo '</div>';
