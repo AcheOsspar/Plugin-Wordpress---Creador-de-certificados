@@ -163,6 +163,91 @@ function zc_mostrar_pagina_temarios() {
                 }
             }
         }
+
+        if ($_POST['accion'] === 'subir_multiples' && wp_verify_nonce($_POST['zc_temarios_nonce'], 'zc_temarios_action')) {
+            if (empty($_FILES['temarios_pdf']['name']) || !is_array($_FILES['temarios_pdf']['name'])) {
+                echo '<div class="notice notice-error"><p>❌ No se seleccionaron archivos.</p></div>';
+            } else {
+                require_once ABSPATH . 'wp-admin/includes/file.php';
+                require_once ABSPATH . 'wp-admin/includes/image.php';
+
+                $ok = 0;
+                $errores = array();
+                $n = count($_FILES['temarios_pdf']['name']);
+                for ($i = 0; $i < $n; $i++) {
+                    if (empty($_FILES['temarios_pdf']['name'][$i]) || $_FILES['temarios_pdf']['error'][$i] !== UPLOAD_ERR_OK) {
+                        continue;
+                    }
+                    $ftype = wp_check_filetype($_FILES['temarios_pdf']['name'][$i]);
+                    if (empty($ftype['ext']) || strtolower($ftype['ext']) !== 'pdf') {
+                        $errores[] = sprintf('No es PDF: %s', sanitize_file_name($_FILES['temarios_pdf']['name'][$i]));
+                        continue;
+                    }
+
+                    $single = array(
+                        'name'     => $_FILES['temarios_pdf']['name'][$i],
+                        'type'     => $_FILES['temarios_pdf']['type'][$i],
+                        'tmp_name' => $_FILES['temarios_pdf']['tmp_name'][$i],
+                        'error'    => $_FILES['temarios_pdf']['error'][$i],
+                        'size'     => $_FILES['temarios_pdf']['size'][$i],
+                    );
+
+                    $movefile = wp_handle_upload($single, array('test_form' => false));
+                    if (isset($movefile['error'])) {
+                        $errores[] = sanitize_file_name($single['name']) . ': ' . $movefile['error'];
+                        continue;
+                    }
+
+                    $attachment = array(
+                        'post_mime_type' => $movefile['type'],
+                        'post_title'     => sanitize_text_field(pathinfo($single['name'], PATHINFO_FILENAME)),
+                        'post_content'   => '',
+                        'post_status'    => 'inherit',
+                        'guid'           => $movefile['url'],
+                    );
+                    $attachment_id = wp_insert_attachment($attachment, $movefile['file']);
+                    if (is_wp_error($attachment_id) || !$attachment_id) {
+                        $errores[] = sanitize_file_name($single['name']) . ': error al registrar en medios.';
+                        continue;
+                    }
+
+                    $meta = wp_generate_attachment_metadata($attachment_id, $movefile['file']);
+                    wp_update_attachment_metadata($attachment_id, $meta);
+
+                    $url = wp_get_attachment_url($attachment_id);
+                    if (empty($url)) {
+                        $errores[] = sanitize_file_name($single['name']) . ': sin URL de adjunto.';
+                        continue;
+                    }
+
+                    $base = pathinfo($single['name'], PATHINFO_FILENAME);
+                    $nombre = sanitize_text_field($base);
+                    if ($nombre === '') {
+                        $nombre = 'Temario ' . $attachment_id;
+                    }
+
+                    if (zc_crear_temario($nombre, $url)) {
+                        $ok++;
+                    } else {
+                        $errores[] = sanitize_file_name($single['name']) . ': no se pudo guardar en la lista.';
+                    }
+                }
+
+                if ($ok > 0) {
+                    echo '<div class="notice notice-success"><p>✅ Se agregaron <strong>' . (int) $ok . '</strong> temario(s) a la lista. Asígnalos desde cada certificado.</p></div>';
+                }
+                if (!empty($errores)) {
+                    echo '<div class="notice notice-warning"><p><strong>Advertencias:</strong></p><ul style="list-style:disc;margin-left:1.5em;">';
+                    foreach ($errores as $msg) {
+                        echo '<li>' . esc_html($msg) . '</li>';
+                    }
+                    echo '</ul></div>';
+                }
+                if ($ok === 0 && empty($errores)) {
+                    echo '<div class="notice notice-error"><p>❌ No se pudo importar ningún PDF válido.</p></div>';
+                }
+            }
+        }
     }
     
     $temarios = zc_obtener_todos_los_temarios();
@@ -170,6 +255,26 @@ function zc_mostrar_pagina_temarios() {
     <div class="wrap">
         <h1>📚 Gestión de Temarios</h1>
         <p>Administra los temarios PDF que aparecerán como opciones en los certificados.</p>
+
+        <div class="card" style="max-width: 800px; margin-bottom: 20px;">
+            <h2>📤 Subir varios PDF a la vez</h2>
+            <p class="description">Los archivos se guardan en la biblioteca de medios y se añaden a la lista con el <strong>nombre del archivo</strong> (sin extensión). Luego puedes editar el nombre o asignar cada temario manualmente en cada certificado.</p>
+            <form method="post" action="" enctype="multipart/form-data">
+                <?php wp_nonce_field('zc_temarios_action', 'zc_temarios_nonce'); ?>
+                <input type="hidden" name="accion" value="subir_multiples">
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">Archivos PDF</th>
+                        <td>
+                            <input type="file" name="temarios_pdf[]" accept=".pdf,application/pdf" multiple required>
+                        </td>
+                    </tr>
+                </table>
+                <p class="submit">
+                    <input type="submit" class="button-primary" value="📤 Importar a la lista de temarios">
+                </p>
+            </form>
+        </div>
         
         <!-- Formulario para crear nuevo temario -->
         <div class="card" style="max-width: 800px; margin-bottom: 20px;">
@@ -1679,7 +1784,7 @@ function zc_final_generar_diploma($post_id, $post) {
 
     // --- INICIO: AÑADIR IMAGEN DE FONDO DEL DIPLOMA ---
     // !! IMPORTANTE: Reemplaza esta URL con la URL de tu imagen de fondo para el diploma horizontal.
-    $imagen_fondo_diploma_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/diploma-zenactivo.png'; 
+    $imagen_fondo_diploma_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2026/04/diploma-zenactivo-scaled.png'; 
     if ($imagen_fondo_diploma_url) {
         $pdf->SetAutoPageBreak(false, 0);
         // Las dimensiones para A4 horizontal son 297x210 mm
@@ -3150,12 +3255,18 @@ EOD;
         $pdf->Cell(80, 6, $instructor, 0, 1, 'C');
     }
 
-    // --- PIE DE PÁGINA CON TEXTO Y QR (IDÉNTICO AL INDIVIDUAL) ---
-    $yPositionFooter = 220;
-    $pdf->SetY($yPositionFooter); 
-    
+    // --- PIE DE PÁGINA CON TEXTO Y QR (dinámico tras firmas; evita solaparse con firmas del grupal) ---
+    $pdf->Ln(10);
+    $yCurrentPosition = $pdf->GetY();
+    $espacioNecesario = 42;
+    $limitePagina = $pdf->getPageHeight() - $pdf->getBreakMargin();
+    if (($yCurrentPosition + $espacioNecesario) > $limitePagina) {
+        $pdf->AddPage();
+        $yCurrentPosition = $pdf->GetY() + 20;
+    }
+    $pdf->SetY($yCurrentPosition);
     $yPositionForQr = $pdf->GetY();
-    
+
     $pdf->SetFont($font, 'B', 9);
     $pdf->SetTextColor(80, 80, 80);
     $pdf->Cell(0, 5, 'Código de validación:', 0, 1, 'L');
@@ -3167,8 +3278,9 @@ EOD;
     $pdf->SetFont($font, 'U', 9);
     $pdf->SetTextColor(40, 80, 150);
     $pdf->Cell(0, 5, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/', 0, 1, 'L', false, 'https://validador.zenactivospa.cl/pagina-de-verificacion-zen/');
-    
-    $qrSize = 35;
+
+    // QR algo más compacto en grupal (35mm invadía la zona visual de firmas cuando el pie quedaba alto)
+    $qrSize = 28;
     $qrX = 150;
     $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $yPositionForQr, $qrSize, $qrSize);
 
@@ -3374,7 +3486,7 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
     $pdf->SetMargins(20, 15, 20);
     $font = 'opensans';
     
-    $imagen_fondo_diploma_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2025/09/diploma-zenactivo.png';
+    $imagen_fondo_diploma_url = 'https://validador.zenactivospa.cl/wp-content/uploads/2026/04/diploma-zenactivo-scaled.png';
     
     foreach ($certificados_individuales as $index => $certificado_individual) {
         $post_id_individual = $certificado_individual->ID;
@@ -3599,7 +3711,7 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
    
    🎨 FONDOS:
    • Certificado individual: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/hoja-membretada-FINAL-scaled.png
-   • Diploma horizontal: https://validador.zenactivospa.cl/wp-content/uploads/2025/09/diploma-zenactivo.png
+   • Diploma horizontal: https://validador.zenactivospa.cl/wp-content/uploads/2026/04/diploma-zenactivo-scaled.png
    
    🔗 VERIFICACIÓN:
    • URL base: https://validador.zenactivospa.cl/pagina-de-verificacion-zen/
