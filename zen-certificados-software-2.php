@@ -1,8 +1,8 @@
 <?php
 /**
- * Plugin Name:       Zen Certificados Suite (Generador de Certificados)
- * Description:       Plugin a medida para crear, gestionar, importar y validar certificados con PDFs y QR.
- * Version:           8.6.0
+ * Plugin Name:       Zen Certificados Software 2
+ * Description:       Certificados PDF/QR, importación y validación. Paquete Software 2 (mismo núcleo, nombre de archivo distinto para despliegue).
+ * Version:           8.6.1
  * Author:            Alain Ossandon
  */
 
