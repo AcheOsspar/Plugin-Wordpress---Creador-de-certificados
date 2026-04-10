@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Zen Certificados Software 2
  * Description:       Certificados PDF/QR, importación y validación. Paquete Software 2 (mismo núcleo, nombre de archivo distinto para despliegue).
- * Version:           8.6.1
+ * Version:           8.6.2
  * Author:            Alain Ossandon
  */
 
@@ -1740,9 +1740,11 @@ EOD;
     $qrX = 150;
     $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $yPositionForQr, $qrSize, $qrSize);
 
-    // Limpiar el buffer de salida
-    ob_end_clean();
-    
+    // Evitar avisos si no hay buffer (ob_end_clean sin ob_start previo en esta petición)
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
     $pdf_content = $pdf->Output('', 'S');
     
     $file_name = 'certificado-' . sanitize_title($empresa) . '-' . $post_id . '.pdf';
@@ -3336,8 +3338,10 @@ EOD;
     $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $yPositionForQr, $qrSize, $qrSize);
 
     // Generar y subir PDF
-    ob_end_clean();
-    
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+
     $pdf_content = $pdf->Output('', 'S');
     
     $file_name = 'certificado-grupal-' . sanitize_title($empresa) . '-' . $post_id . '.pdf';
@@ -3704,9 +3708,11 @@ function zc_grupal_generar_diplomas_compilados($post_id_grupal) {
         $qrY = 210 - $qrSize - 15;
         $pdf->write2DBarcode($verification_url, 'QRCODE,M', $qrX, $qrY, $qrSize, $qrSize);
     }
-    
+
     // Generar y subir PDF compilado
-    ob_end_clean();
+    if (ob_get_level() > 0) {
+        ob_end_clean();
+    }
     $pdf_content = $pdf->Output('', 'S');
     
     $file_name = 'diplomas-compilados-' . sanitize_title($empresa) . '-' . $post_id_grupal . '.pdf';
