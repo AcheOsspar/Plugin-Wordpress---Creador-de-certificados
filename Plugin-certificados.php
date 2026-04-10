@@ -1,8 +1,8 @@
 <?php
 /**
- * Plugin Name:       Zen Certificados (Generador de Certificados)
+ * Plugin Name:       Zen Certificados Suite (Generador de Certificados)
  * Description:       Plugin a medida para crear, gestionar, importar y validar certificados con PDFs y QR.
- * Version:           8.5 - Corrige error fatal en activación
+ * Version:           8.6.0
  * Author:            Alain Ossandon
  */
 
@@ -876,19 +876,15 @@ function zc_final_mostrar_pagina_importador() {
 // PARTE 5: SHORTCODE DE VERIFICACIÓN (EXPANDIDO PARA GRUPALES)
 // =============================================================================
 
-// 🔧 PREVENIR MÚLTIPLES REGISTROS DEL SHORTCODE
-if (!shortcode_exists('verificador_de_certificados')) {
+// Registro en init (prioridad tardía) para no quedar por debajo de otros plugins que
+// registren el mismo tag vacío, y sin "ejecutar solo una vez": un segundo do_shortcode
+// en la misma petición (widget + contenido, page builder) dejaba solo un comentario HTML.
+add_action('init', 'zc_register_shortcode_verificador_certificados', 20);
+function zc_register_shortcode_verificador_certificados() {
     add_shortcode('verificador_de_certificados', 'zc_final_funcion_verificadora');
 }
 
 function zc_final_funcion_verificadora() { 
-    // 🔧 PREVENIR EJECUCIONES DUPLICADAS DEL SHORTCODE
-    static $shortcode_executed = false;
-    if ($shortcode_executed) {
-        return '<!-- Shortcode verificador_de_certificados ya ejecutado -->';
-    }
-    $shortcode_executed = true;
-    
     ob_start(); 
     
     // 🎨 AGREGAR ESTILOS CSS PARA EL VERIFICADOR
